@@ -1,8 +1,8 @@
 {
-  "playwright": {
-    "command": "npx",
-    "args": [
-      "@playwright/mcp@latest"
-    ]
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp", "--headless"]
+    }
   }
 }

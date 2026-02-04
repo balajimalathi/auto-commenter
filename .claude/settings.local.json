@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx @anthropic-ai/mcp-client playwright browser_navigate:*)",
+      "Bash(npx @playwright/mcp@latest --help:*)",
+      "Bash(npm ls:*)",
+      "Bash(npx @anthropic-ai/mcp-client browser_navigate:*)",
+      "Bash(npx playwright --version)"
+    ]
+  }
+}

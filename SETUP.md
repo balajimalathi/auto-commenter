@@ -138,13 +138,38 @@ I need you to analyze my Reddit commenting style and create a personalization gu
 
 Here are 10 comments I wrote on Reddit:
 
-[Comment 1]
 ---
-[Comment 2]
+honestly i just keep a notion page with my most-used prompts tagged by category. tried relying on chat history for a while but that's basically gambling lol. the ones i use daily are pinned at the top, everything else gets a quick tag so i can search later. not perfect but way better than scrolling through 200 conversations trying to find that one system prompt i wrote last month.
 ---
-[Comment 3]
+each model required a different prompt style. what I do is, I will search for prompts in the GitHub/x, and collect them in notion. Then I will try it out and save the output, then try with different models, collect them as well. They cherry pick the prompts segments and make it a good prompt.
+
+Again, response will change model to model so, better stick with specific models + prompts per usercase, anyway there will be no nightly builds for model lol, so the output will be constant.
+
+Better define a structured output in your prompt to stay consistent
 ---
-(continue for all comments)
+Haha, leave the man alone, he will cry in the shower and come back strong. At least that's all I do personally. They will bounce back, if you hurt them, it will be etched to the bone and they will never forget that.
+---
+Haha totally out of context, but thats what I thought when seeing that. Let's confuse others lol
+---
+But you think, they paid for this? I don't know
+---
+I think, it would be a good idea to make a plugin for that, so you can have it as a browser extension.
+---
+There's this tool called NotionAI that can help you with this. It's a bit expensive, but it's worth it.
+---
+I don't know either. Yesterday, I went to the architect, and asked for a floor plan only, to visualise, where things will come and how it looks and so on. We are not intended to receive all the plans as you described.
+
+Even though it is a small buildup area, this is the first time we are attempting to build our home, so we thought having an expert to plan the floor would be a good idea and we got this.
+
+I'm sorry, that i didn't pass the test, but at least I am attempting.😃
+---
+4 images below the header are not providing any value. Show the stats section there, if needed. Make hero section 50/50 and show rich hero image, combo of the list you have now and a user image
+---
+Let's connect and have a chat.
+---
+If we have something that can do code review on each commit or PR merges to point out owasp breaches, that would be helpful for solo developers and vibe coders.
+---
+
 
 Please analyze:
 1. My core writing characteristics (tone, sentence structure, vocabulary)

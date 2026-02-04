@@ -6,97 +6,120 @@
 
 ## Target Subreddit List
 
-| Subreddit | Subscribers | Daily Limit |
-|-----------|-------------|-------------|
-| r/WebDev | ~2.8M | 3 |
-| r/ClaudeAI | ~180K | 3 |
-| r/Cursor | ~30K | 3 |
-| r/LocalLLaMA | ~450K | 3 |
-| r/ChatGPT | ~6.9M | 3 |
-| r/SideProject | ~330K | 3 |
-| r/Obsidian | ~190K | 3 |
-| r/Rag | ~15K | 3 |
+| Subreddit       | Subscribers | Daily Limit |
+| --------------- | ----------- | ----------- |
+| r/chatgptpro    | ~15K        | 3           |
+| r/nocode        | ~92K        | 3           |
+| r/openai        | ~1.75M      | 3           |
+| r/saas          | ~433K       | 3           |
+| r/microsaas     | ~124K       | 3           |
+| r/micro_saas    | ~28K        | 3           |
+| r/google_sheets | ~150K       | 3           |
+| r/perplexity_ai | ~25K        | 3           |
+| r/grok          | ~50K        | 3           |
+| r/airtable      | ~16K        | 3           |
+| r/sideproject   | ~330K       | 3           |
 
 ---
 
 ## Subreddit-Specific Guides
 
-### r/WebDev
+### r/chatgptpro
 
 | Item | Content |
 |------|---------|
-| **Core Community Rules** | • No spam/self-promotion<br>• Professional tone<br>• "Showoff Saturday" only for project sharing |
-| **Community Nature** | • Professional developer-focused<br>• Technical discussion, best practices sharing<br>• Technical, Professional |
-| **Good Topics to Answer** | • AI integration in web apps<br>• Developer productivity tools<br>• Context management in development |
+| **Core Community Rules** | -  ChatGPT Pro/Plus features only<br>-  No self-promo without value<br>-  Practical Pro workflows/tips |
+| **Community Nature** | -  Paid ChatGPT users (Pro/Team)<br>-  Advanced prompting/workflows<br>-  Power users solving real problems |
+| **Good Topics to Answer** | -  Advanced prompting techniques<br>-  Pro model differences (4o vs others)<br>-  Workflow automation with Pro |
 
----
+***
 
-### r/ClaudeAI
-
-| Item | Content |
-|------|---------|
-| **Core Community Rules** | • Claude-related content only<br>• No excessive self-promotion<br>• Share technical insights |
-| **Community Nature** | • Claude power users<br>• High understanding of MCP<br>• Open to new use cases |
-| **Good Topics to Answer** | • MCP implementation<br>• Context/memory management<br>• Multi-agent workflows<br>• Notion/Obsidian integration |
-
----
-
-### r/Cursor
+### r/nocode
 
 | Item | Content |
 |------|---------|
-| **Core Community Rules** | • Cursor-related content only<br>• Share tips and workflows<br>• Be helpful to newcomers |
-| **Community Nature** | • AI coding tool early adopters<br>• Interested in workflow optimization<br>• Active practical tips sharing |
-| **Good Topics to Answer** | • Context switching between tools<br>• Maintaining project context<br>• AI coding workflow optimization |
+| **Core Community Rules** | -  No-code tools/workflows only<br>-  Show real workflows, not just screenshots<br>-  Value-first, no hard sell |
+| **Community Nature** | -  No-code builders/creators<br>-  Zapier/Make/Airtable users<br>-  Rapid prototyping mindset |
+| **Good Topics to Answer** | -  No-code data workflows<br>-  Airtable/Sheets automation<br>-  Replace Zapier with simpler tools |
 
----
+***
 
-### r/LocalLLaMA
-
-| Item | Content |
-|------|---------|
-| **Core Community Rules** | • **No commercial spam (very strict)**<br>• Technical depth required<br>• Open source preferred |
-| **Community Nature** | • Most demanding technical community<br>• Very negative toward commercial promotion<br>• Values open source contribution |
-| **Good Topics to Answer** | • Memory architecture for LLMs<br>• Context window optimization<br>• RAG vs semantic memory<br>• **Pure technical discussion only** |
-
----
-
-### r/ChatGPT
+### r/openai
 
 | Item | Content |
 |------|---------|
-| **Core Community Rules** | • ChatGPT related content<br>• No excessive promotion<br>• Share useful tips |
-| **Community Nature** | • Largest AI community (6.9M+)<br>• Mix of technical users + general public<br>• Practical use case sharing |
-| **Good Topics to Answer** | • Repeating context every conversation<br>• ChatGPT + other tools workflow<br>• Memory limitations<br>• **Language understandable to general public** |
+| **Core Community Rules** | -  OpenAI products (GPT, APIs)<br>-  Technical discussions welcome<br>-  No spam, show real value |
+| **Community Nature** | -  OpenAI API devs + GPT users<br>-  Technical + product discussions<br>-  API integration workflows |
+| **Good Topics to Answer** | -  GPT output parsing/structured data<br>-  API data extraction patterns<br>-  GPT → external tools workflows |
 
----
+***
 
-### r/SideProject
-
-| Item | Content |
-|------|---------|
-| **Core Community Rules** | • Share with context and story<br>• "Show and Tell" welcomed<br>• Engage with other builders |
-| **Community Nature** | • Most promotion-friendly<br>• Culture of builders supporting each other<br>• Values sharing development process/lessons learned |
-| **Good Topics to Answer** | • Building with MCP<br>• Hackathon to product journey<br>• Early stage startup challenges<br>• **Beta tester recruitment possible** |
-
----
-
-### r/Obsidian
+### r/saas
 
 | Item | Content |
 |------|---------|
-| **Core Community Rules** | • Obsidian-related content only<br>• "Community Showcase" for tools<br>• No spam, useful tools welcomed |
-| **Community Nature** | • Serious about building Second Brain<br>• Active in adopting plugins/tools<br>• High willingness to pay for useful tools |
-| **Good Topics to Answer** | • Obsidian + AI integration<br>• Vault as AI context source<br>• PKM workflow optimization<br>• MCP server for Obsidian |
+| **Core Community Rules** | -  SaaS building/growth only<br>-  MRR/$ metrics appreciated<br>-  Show real traction/numbers |
+| **Community Nature** | -  SaaS founders/builders<br>-  Bootstrap + VC funded<br>-  Growth hacking + product focus |
+| **Good Topics to Answer** | -  Solo founder workflows<br>-  Content/lead gen automation<br>-  Airtable/CRM integrations |
 
----
+***
 
-### r/Rag
+### r/microsaas
 
 | Item | Content |
 |------|---------|
-| **Core Community Rules** | • RAG technical content only<br>• Research papers welcome<br>• Quality over quantity |
-| **Community Nature** | • RAG specialist community<br>• Architecture discussion, paper reviews<br>• Values implementation experience sharing |
-| **Good Topics to Answer** | • Hybrid RAG architecture (Graph + Vector)<br>• Personal context vs enterprise RAG<br>• Multi-hop retrieval<br>• Semantic cache implementation |
+| **Core Community Rules** | -  MicroSaaS ($0-$5K MRR)<br>-  Show your build process<br>-  Honest revenue discussions |
+| **Community Nature** | -  Solo indie hackers<br>-  Chrome extensions, small tools<br>-  Bootstrap only, no VC |
+| **Good Topics to Answer** | -  Chrome extension launches<br>-  Solo founder productivity<br>-  Simple workflow tools |
+
+***
+
+### r/micro_saas
+
+| Item | Content |
+|------|---------|
+| **Core Community Rules** | -  MicroSaaS builds/ships<br>-  Revenue transparency<br>-  No low-effort "check my site" posts |
+| **Community Nature** | -  Side project SaaS<br>-  Rapid iteration/shipping<br>-  Honest MRR discussions |
+| **Good Topics to Answer** | -  Weekend project launches<br>-  AI tool integrations<br>-  Simple data workflows |
+
+***
+
+### r/google_sheets
+
+| Item | Content |
+|------|---------|
+| **Core Community Rules** | -  Google Sheets formulas/scripts<br>-  Share templates/workflows<br>-  Help others debug |
+| **Community Nature** | -  Sheets power users<br>-  Formulas, Apps Script, add-ons<br>-  Data analysis/automation |
+| **Good Topics to Answer** | -  AI data import workflows<br>-  Table formatting/cleaning<br>-  External data → Sheets |
+
+***
+
+### r/perplexity_ai
+
+| Item | Content |
+|------|---------|
+| **Core Community Rules** | -  Perplexity AI features/prompts<br>-  Comparisons with ChatGPT<br>-  Technical discussions |
+| **Community Nature** | -  Perplexity power users<br>-  AI research workflows<br>-  Prompt engineering focus |
+| **Good Topics to Answer** | -  Structured output prompts<br>-  Data extraction techniques<br>-  AI → external tools |
+
+***
+
+### r/grok
+
+| Item | Content |
+|------|---------|
+| **Core Community Rules** | -  Grok AI discussions<br>-  xAI product updates<br>-  Prompt sharing |
+| **Community Nature** | -  Grok/X users<br>-  xAI enthusiasts<br>-  Early AI adopters |
+| **Good Topics to Answer** | -  Grok structured prompts<br>-  Table/list generation<br>-  Workflow integrations |
+
+***
+
+### r/airtable
+
+| Item | Content |
+|------|---------|
+| **Core Community Rules** | -  Airtable features/automations<br>-  Templates/workflows<br>-  Database design help |
+| **Community Nature** | -  Airtable power users<br>-  No-code database builders<br>-  Template sharing |
+| **Good Topics to Answer** | -  External data import<br>-  Table structure optimization<br>-  Automation workflows |
 
 ---
