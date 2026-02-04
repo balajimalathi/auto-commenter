@@ -1,0 +1,60 @@
+{
+  "batch": {
+    "description": "Fill daily quota across all configured subreddits",
+    "models": {
+      "analyze": "summarize",
+      "generate": "comment",
+      "review": "review"
+    },
+    "options": {
+      "waitBetweenSubreddits": true,
+      "humanInLoop": true,
+      "autoApprove": true
+    }
+  },
+  "commenter": {
+    "description": "Post specific number of comments on a subreddit",
+    "models": {
+      "analyze": "summarize",
+      "generate": "comment",
+      "review": "review"
+    },
+    "options": {
+      "waitBetweenComments": true,
+      "humanInLoop": true,
+      "autoApprove": true
+    }
+  },
+  "notifications": {
+    "description": "Check and respond to Reddit notifications",
+    "models": {
+      "analyze": "summarize",
+      "generate": "comment"
+    },
+    "options": {
+      "humanInLoop": true,
+      "autoApprove": true
+    }
+  },
+  "trending": {
+    "description": "Find trending posts for inspiration or recreation",
+    "models": {
+      "analyze": "summarize",
+      "summarize": "summarize"
+    },
+    "options": {
+      "humanInLoop": false
+    }
+  },
+  "post": {
+    "description": "Write and publish a new post",
+    "models": {
+      "generate": "comment",
+      "review": "review"
+    },
+    "options": {
+      "humanInLoop": true,
+      "autoApprove": false
+    }
+  }
+}

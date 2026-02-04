@@ -1,0 +1,40 @@
+{
+  "name": "agent0",
+  "version": "1.0.0",
+  "description": "Autonomous CLI for skill-based browser automation",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "agent0": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "cli",
+    "automation",
+    "reddit",
+    "agent"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@clack/prompts": "^0.7.0",
+    "boxen": "^7.1.1",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "ora": "^8.0.1",
+    "proper-lockfile": "^4.1.2",
+    "puppeteer-core": "^22.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "@types/proper-lockfile": "^4.1.4",
+    "tsup": "^8.0.2",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3"
+  }
+}
