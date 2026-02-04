@@ -264,6 +264,113 @@ export async function extractRedditPosts(): Promise<RedditPost[]> {
 }
 
 /**
+ * Submit a Reddit comment.
+ * Reddit structure: shreddit-composer > contenteditable div (placeholder "Join the conversation") > Comment button.
+ * Uses Shadow DOM traversal for faceplate-form, shreddit-composer, reddit-rte.
+ */
+export async function submitRedditComment(commentText: string): Promise<{ success: boolean; error?: string }> {
+  const page = await getPage();
+
+  try {
+    // Step 1: Find the contenteditable div with "Join the conversation" (inside shreddit-composer/reddit-rte Shadow DOM)
+    const clicked = await page.evaluate(() => {
+      function findInShadowRoot(root: Document | ShadowRoot, predicate: (el: Element) => boolean): Element | null {
+        const all = root.querySelectorAll('*');
+        for (const el of all) {
+          if (predicate(el)) return el;
+        }
+        for (const node of all) {
+          if (node.shadowRoot) {
+            const found = findInShadowRoot(node.shadowRoot, predicate);
+            if (found) return found;
+          }
+        }
+        return null;
+      }
+
+      const placeholder = 'join the conversation';
+      const composer = findInShadowRoot(document, (e) => {
+        if (e.getAttribute('contenteditable') !== 'true') return false;
+        const p = (e.getAttribute('aria-placeholder') || e.getAttribute('placeholder') || '').toLowerCase();
+        const visible = (e as HTMLElement).offsetParent !== null;
+        return (p.includes(placeholder) || (p.includes('join') && p.includes('conversation'))) && visible;
+      });
+
+      if (!composer) {
+        const fallback = findInShadowRoot(document, (e) => {
+          const ce = e.getAttribute('contenteditable') === 'true';
+          const role = e.getAttribute('role') === 'textbox';
+          return ce && role && (e as HTMLElement).offsetParent !== null;
+        });
+        if (fallback) {
+          (fallback as HTMLElement).scrollIntoView({ block: 'center' });
+          (fallback as HTMLElement).click();
+          return true;
+        }
+        return false;
+      }
+
+      (composer as HTMLElement).scrollIntoView({ block: 'center' });
+      (composer as HTMLElement).click();
+      return true;
+    });
+
+    if (!clicked) {
+      return { success: false, error: 'Could not find comment box (contenteditable with "Join the conversation").' };
+    }
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Step 2: Type the comment
+    await page.keyboard.type(commentText, { delay: 20 });
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Step 3: Find and click Comment button - button[type="submit"] with "Comment" or slot="submit-button"
+    const buttonClicked = await page.evaluate(() => {
+      function findAllInShadowRoot(root: Document | ShadowRoot, tag: string): Element[] {
+        const results: Element[] = [];
+        const els = root.querySelectorAll(tag);
+        results.push(...els);
+        const all = root.querySelectorAll('*');
+        for (const node of all) {
+          if (node.shadowRoot) {
+            results.push(...findAllInShadowRoot(node.shadowRoot, tag));
+          }
+        }
+        return results;
+      }
+
+      const buttons = findAllInShadowRoot(document, 'button');
+      for (const btn of buttons) {
+        const type = (btn.getAttribute('type') || '').toLowerCase();
+        const slot = btn.getAttribute('slot') || '';
+        const text = (btn.textContent || '').trim().toLowerCase();
+        const isVisible = (btn as HTMLElement).offsetParent !== null;
+        const isCommentSubmit =
+          type === 'submit' &&
+          (slot === 'submit-button' || text === 'comment' || (text.includes('comment') && !text.includes('cancel')));
+        if (isVisible && isCommentSubmit) {
+          (btn as HTMLElement).click();
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (!buttonClicked) {
+      return { success: false, error: 'Could not find Comment button (button[type="submit"]).' };
+    }
+
+    await new Promise((r) => setTimeout(r, 1500));
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: `Failed to post comment: ${message}` };
+  }
+}
+
+/**
  * Check if logged into Reddit
  */
 export async function isLoggedIntoReddit(): Promise<boolean> {

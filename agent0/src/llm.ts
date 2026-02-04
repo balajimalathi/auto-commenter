@@ -2,6 +2,7 @@ import { createSpinner } from './ui/progress.js';
 import {
   getToolDefinitions,
   executeTool,
+  CommentPostError,
   type ToolContext,
   type ToolDefinition,
 } from './tools.js';
@@ -411,12 +412,66 @@ Respond in JSON format:
 
 // --- Tool Calling (Agentic Loop) ---
 
+/**
+ * Format a short detail string for a tool call to show in the spinner.
+ */
+function formatToolDetail(name: string, args: Record<string, unknown>): string {
+  switch (name) {
+    case 'browser_navigate':
+      return args.url ? ` -> ${args.url}` : '';
+    case 'read_file':
+    case 'write_file':
+    case 'append_file':
+    case 'list_dir':
+      return args.path ? ` (${args.path})` : '';
+    case 'browser_click':
+    case 'browser_type':
+      return args.selector ? ` (${args.selector})` : '';
+    case 'browser_submit_reddit_comment':
+      return ' (posting comment)';
+    case 'request_approval':
+      return args.content_type ? ` (${args.content_type})` : '';
+    default:
+      return '';
+  }
+}
+
 export interface AgenticLoopOptions {
   skill?: Skill;
   maxIterations?: number;
   model?: string;
   temperature?: number;
   showSpinner?: boolean;
+}
+
+/**
+ * Trim old tool results in the message chain to prevent context bloat.
+ * Keeps the system + user messages and the last `keepRecent` iterations intact.
+ * Older tool results are replaced with a short summary.
+ */
+function trimMessageContext(messages: ChatMessage[], keepRecent: number = 2): void {
+  // Find the boundary: we keep system, user, and the last N assistant+tool groups
+  // Count assistant messages from the end to find the cutoff
+  let assistantCount = 0;
+  let cutoffIdx = messages.length;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') {
+      assistantCount++;
+      if (assistantCount >= keepRecent) {
+        cutoffIdx = i;
+        break;
+      }
+    }
+  }
+
+  // Truncate tool messages before the cutoff (but keep system/user/assistant structure)
+  for (let i = 0; i < cutoffIdx; i++) {
+    const msg = messages[i];
+    if (msg.role === 'tool' && (msg as ToolMessage).content.length > 200) {
+      (msg as ToolMessage).content = (msg as ToolMessage).content.substring(0, 150) + '\n...[trimmed for context]';
+    }
+  }
 }
 
 /**
@@ -474,7 +529,21 @@ export async function runAgenticLoop(
   for (let i = 0; i < maxIterations; i++) {
     spinner?.start(`Step ${i + 1}/${maxIterations}`);
 
-    const result = await callLLMRaw(messages, tools, { model, temperature });
+    let result: Awaited<ReturnType<typeof callLLMRaw>>;
+    try {
+      result = await callLLMRaw(messages, tools, { model, temperature });
+    } catch (error) {
+      // Retry once on transient failures (network errors, timeouts)
+      const errMsg = error instanceof Error ? error.message : String(error);
+      spinner?.warn(`LLM call failed: ${errMsg} — retrying...`);
+      try {
+        result = await callLLMRaw(messages, tools, { model, temperature });
+      } catch (retryError) {
+        const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+        spinner?.fail(`LLM call failed after retry: ${retryMsg}`);
+        throw new Error(`LLM API failed: ${retryMsg}`);
+      }
+    }
 
     if (result.content) {
       lastContent = result.content;
@@ -485,7 +554,8 @@ export async function runAgenticLoop(
       return lastContent || '(No response)';
     }
 
-    spinner?.start(`Executing ${result.tool_calls.length} tool(s)...`);
+    const toolNames = result.tool_calls.map(tc => tc.function.name).join(', ');
+    spinner?.start(`Executing ${result.tool_calls.length} tool(s): ${toolNames}`);
 
     const assistantMsg: Message = {
       role: 'assistant',
@@ -494,7 +564,10 @@ export async function runAgenticLoop(
     };
     messages.push(assistantMsg);
 
-    for (const tc of result.tool_calls) {
+    let anyToolFailed = false;
+
+    for (let tIdx = 0; tIdx < result.tool_calls.length; tIdx++) {
+      const tc = result.tool_calls[tIdx];
       let args: Record<string, unknown> = {};
       try {
         args = JSON.parse(tc.function.arguments || '{}');
@@ -502,7 +575,32 @@ export async function runAgenticLoop(
         args = {};
       }
 
-      const toolResult = await executeTool(tc.function.name, args, toolContext);
+      const detail = formatToolDetail(tc.function.name, args);
+      spinner?.start(
+        `[${tIdx + 1}/${result.tool_calls.length}] ${tc.function.name}${detail}`
+      );
+
+      let toolResult: string;
+      try {
+        toolResult = await executeTool(tc.function.name, args, toolContext);
+      } catch (error) {
+        if (error instanceof CommentPostError) {
+          spinner?.fail(`Comment posting failed: ${error.message}`);
+          throw error;
+        }
+        throw error;
+      }
+
+      // Check for non-fatal errors in tool result
+      try {
+        const parsed = JSON.parse(toolResult);
+        if (parsed.error) {
+          spinner?.fail(`Tool "${tc.function.name}" error: ${parsed.error}`);
+          anyToolFailed = true;
+        }
+      } catch {
+        // Not JSON — normal content, no error to check
+      }
 
       messages.push({
         role: 'tool',
@@ -511,7 +609,14 @@ export async function runAgenticLoop(
       });
     }
 
-    spinner?.succeed(`Tools executed`);
+    if (anyToolFailed) {
+      spinner?.warn(`Tools executed (with errors): ${toolNames}`);
+    } else {
+      spinner?.succeed(`Tools executed: ${toolNames}`);
+    }
+
+    // Trim old tool results to prevent context bloat on subsequent LLM calls
+    trimMessageContext(messages);
   }
 
   spinner?.warn('Max iterations reached');

@@ -2,6 +2,7 @@ import { output } from './ui/output.js';
 import { loadSkill, loadResource, type Skill } from './skill-loader.js';
 import { readMemory } from './memory.js';
 import { runAgenticLoop } from './llm.js';
+import { CommentPostError } from './tools.js';
 import { connectBrowser, closeBrowser } from './browser.js';
 
 export type AgentMode = 'batch' | 'commenter' | 'notifications' | 'trending' | 'post';
@@ -36,6 +37,7 @@ You have access to these tools. Use them to accomplish the task:
 - browser_get_text: Get visible page text
 - browser_extract_posts: Extract Reddit posts from current page
 - browser_click, browser_type: Interact with page elements
+- browser_submit_reddit_comment: Submit approved comment on Reddit
 - browser_scroll: Scroll to load more content
 - browser_current_url: Get current URL
 - request_approval: Request human approval before posting (required before any comment/post submission)`;
@@ -82,7 +84,7 @@ Your task:
    - Analyze the post content
    - Generate a helpful, natural comment following personalization guidelines
    - IMPORTANT: Call request_approval with the proposed comment before posting
-   - If approved, use browser tools to find the comment box and submit
+   - If approved, use browser_submit_reddit_comment(content) to submit (Reddit-specific, handles Shadow DOM)
    - Update tracking file with the new comment
    - Update memory with the action
 4. Respect delays between comments (wait 2-5 minutes between comments)
@@ -107,11 +109,9 @@ Workflow for each comment:
 7. On the post page: use browser_get_text to read and summarize the post content
 8. Write a helpful, natural comment that replies to that specific post (following personalization guidelines)
 9. Call request_approval with content_type="comment" and your proposed comment text
-10. If approved: find the COMMENT textarea/box (the reply field on the post page, NOT a "Create Post" form), use browser_type to enter your comment, then click submit
+10. If approved: use browser_submit_reddit_comment(content="your approved comment").
 11. Update tracking and memory
-12. If more comments needed: go back to subreddit, scroll, pick another post, repeat
-
-Key: The comment box appears ONLY when viewing an individual post. You must open a post first, then write in the reply/comment field.`;
+12. If more comments needed: go back to subreddit, scroll, pick another post, repeat`;
       break;
 
     case 'notifications':
@@ -197,7 +197,7 @@ ${projectStructure}
 5. Be autonomous - complete the full task without asking questions
 6. If something fails, log the error and try an alternative approach
 7. Report what you accomplished when done
-8. In commenter/notifications mode: ONLY write comments or replies on existing content. Never create new posts. Open the post first, read and summarize it, then write in the comment/reply box.`;
+8. In commenter mode: ONLY write comments on existing posts. Open the post first, call request_approval, then use browser_submit_reddit_comment(content) to submit - do NOT use browser_type for Reddit.`;
 }
 
 /**
@@ -241,10 +241,22 @@ export async function runWithToolCalling(
     // Connect browser (required for browser_* tools)
     await connectBrowser();
 
+    // Mode-appropriate iteration limits:
+    // commenter/notifications: focused tasks, ~4-6 iterations per comment
+    // batch: needs more headroom for multiple subreddits
+    // trending/post: moderate complexity
+    const maxIterationsMap: Record<AgentMode, number> = {
+      commenter: 10,
+      notifications: 10,
+      trending: 8,
+      post: 10,
+      batch: 20,
+    };
+
     // Run the agentic loop
     const result = await runAgenticLoop(systemPrompt, userPrompt, {
       skill,
-      maxIterations: 25,
+      maxIterations: maxIterationsMap[mode],
       showSpinner: true,
     });
 
@@ -255,8 +267,15 @@ export async function runWithToolCalling(
     return result;
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    output.error(`${mode} mode failed: ${errorMessage}`);
+    if (error instanceof CommentPostError) {
+      output.divider();
+      output.error(`COMMENT POSTING FAILED: ${error.message}`);
+      output.error('Agent stopped. The comment was NOT posted successfully.');
+      output.info('Check the browser to verify the state, then retry.');
+    } else {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      output.error(`${mode} mode failed: ${errorMessage}`);
+    }
     throw error;
   } finally {
     await closeBrowser();

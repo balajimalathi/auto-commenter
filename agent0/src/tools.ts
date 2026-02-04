@@ -6,6 +6,17 @@ import type { Skill } from './skill-loader.js';
 import { confirmWithTimeout } from './ui/prompts.js';
 import { output } from './ui/output.js';
 
+/**
+ * Custom error thrown when a Reddit comment fails to post.
+ * Used to signal the agentic loop to stop immediately.
+ */
+export class CommentPostError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CommentPostError';
+  }
+}
+
 export type ToolContext = {
   skill?: Skill;
   projectRoot: string;
@@ -40,13 +51,13 @@ export function getToolDefinitions(): ToolDefinition[] {
       type: 'function',
       function: {
         name: 'read_file',
-        description: 'Read contents of a file. Use for skill instructions (SKILL.md), tracking data, personalization, subreddit rules, product info, or memory. Paths are relative to project root.',
+        description: 'Read contents of a file. Use for skill instructions, tracking data, personalization, subreddit rules, product info, or memory. Paths are relative to project root. Resources are inside .claude/skills/<skill>/resources/.',
         parameters: {
           type: 'object',
           properties: {
             path: {
               type: 'string',
-              description: 'Path relative to project root (e.g. .claude/skills/reddit-commenter/SKILL.md, tracking/reddit/2026-02-04.md)',
+              description: 'Path relative to project root. Examples: .claude/skills/reddit-commenter/SKILL.md, .claude/skills/reddit-commenter/resources/subreddits.md, .claude/skills/reddit-commenter/resources/personalization_reddit.md, tracking/reddit/2026-02-05.md, .claude/skills/reddit-commenter/memory.md',
             },
           },
           required: ['path'],
@@ -230,6 +241,23 @@ export function getToolDefinitions(): ToolDefinition[] {
     {
       type: 'function',
       function: {
+        name: 'browser_submit_reddit_comment',
+        description: 'Submit a comment on Reddit. Use AFTER request_approval is approved. Must be on a post page.',
+        parameters: {
+          type: 'object',
+          properties: {
+            content: {
+              type: 'string',
+              description: 'The approved comment text to submit',
+            },
+          },
+          required: ['content'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
         name: 'request_approval',
         description: 'Request human approval before posting a comment, reply, or post. REQUIRED before any content submission. Shows the content to the user and waits for approval (auto-approves after timeout).',
         parameters: {
@@ -368,6 +396,15 @@ export async function executeTool(
         return JSON.stringify({ url });
       }
 
+      case 'browser_submit_reddit_comment': {
+        const content = args.content as string;
+        const result = await browser.submitRedditComment(content);
+        if (!result.success) {
+          throw new CommentPostError(result.error ?? 'Failed to post comment');
+        }
+        return JSON.stringify(result);
+      }
+
       case 'request_approval': {
         const content = args.content as string;
         const contentType = args.content_type as string;
@@ -419,6 +456,13 @@ export async function executeTool(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    output.error(`Tool "${name}" failed: ${message}`);
+
+    // Re-throw CommentPostError to halt the agentic loop
+    if (error instanceof CommentPostError) {
+      throw error;
+    }
+
     return JSON.stringify({ error: message });
   }
 }
