@@ -1,12 +1,13 @@
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import { output } from './ui/output.js';
+import { showBanner } from './ui/banner.js';
 import { discoverSkills } from './skill-loader.js';
 import { runBatchMode } from './modes/batch.js';
 import { runCommenterMode } from './modes/commenter.js';
 import { runNotificationsMode } from './modes/notifications.js';
 import { runTrendingMode } from './modes/trending.js';
-import { runAgentMode } from './modes/agent.js';
+import { runPostMode } from './modes/post.js';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -65,16 +66,6 @@ export function createCLI(): Command {
       await runWithSkillSelection(options.skill, 'post', finalContent);
     });
 
-  // Agent command (LLM tool calling)
-  program
-    .command('agent [instruction]')
-    .description('Run autonomous agent with tool calling (read/write files, browser)')
-    .option('-s, --skill <name>', 'Skill to use', 'reddit-commenter')
-    .action(async (instruction, options) => {
-      const finalInstruction = instruction || await promptForInstruction('agent');
-      await runWithSkillSelection(options.skill, 'agent', finalInstruction);
-    });
-
   // Interactive mode (default when no command)
   program
     .command('interactive', { isDefault: true })
@@ -90,7 +81,6 @@ async function promptForInstruction(type: string): Promise<string> {
   const placeholders: Record<string, string> = {
     comment: 'Post 3 comments on r/chatgptpro',
     post: 'Write a post about...',
-    agent: 'Write one comment on r/chatgptpro',
   };
   const result = await p.text({
     message: `Enter ${type} instruction:`,
@@ -114,7 +104,7 @@ async function runWithSkillSelection(
   mode: string,
   instruction?: string
 ): Promise<void> {
-  output.header('Agent0');
+  showBanner();
   
   const skills = await discoverSkills();
   
@@ -157,10 +147,7 @@ async function runWithSkillSelection(
       await runTrendingMode(skillName, instruction);
       break;
     case 'post':
-      output.warning('Post mode not yet implemented');
-      break;
-    case 'agent':
-      await runAgentMode(skillName, instruction || '');
+      await runPostMode(skillName, instruction || '');
       break;
     default:
       output.error(`Unknown mode: ${mode}`);
@@ -168,7 +155,7 @@ async function runWithSkillSelection(
 }
 
 async function runInteractiveMode(): Promise<void> {
-  output.header('Agent0 Interactive Mode');
+  showBanner();
 
   const skills = await discoverSkills();
   
@@ -192,11 +179,11 @@ async function runInteractiveMode(): Promise<void> {
   const mode = await p.select({
     message: 'Select a mode:',
     options: [
-      { value: 'agent', label: 'Agent (Tool Calling)', hint: 'LLM decides actions via tools' },
       { value: 'batch', label: 'Batch Mode', hint: 'Fill daily quota' },
       { value: 'commenter', label: 'Comment', hint: 'Post specific comments' },
       { value: 'notifications', label: 'Notifications', hint: 'Check and respond' },
       { value: 'trending', label: 'Trending', hint: 'Find trending posts' },
+      { value: 'post', label: 'Post', hint: 'Write and publish content' },
     ],
   });
 
@@ -209,8 +196,8 @@ async function runInteractiveMode(): Promise<void> {
 
   if (mode === 'commenter') {
     instruction = await promptForInstruction('comment');
-  } else if (mode === 'agent') {
-    instruction = await promptForInstruction('agent');
+  } else if (mode === 'post') {
+    instruction = await promptForInstruction('post');
   }
 
   await runWithSkillSelection(skill as string, mode as string, instruction);

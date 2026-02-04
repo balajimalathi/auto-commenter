@@ -1,11 +1,6 @@
 import { output } from '../ui/output.js';
-import { BatchProgress } from '../ui/progress.js';
-import { errorRecovery } from '../ui/prompts.js';
-import { loadSkill, loadTracking, parseTracking, parseSubreddits, loadResource, Skill } from '../skill-loader.js';
-import { executeCommentWorkflow } from '../agent-loop.js';
-import { logSubredditComplete, logBatchProgress } from '../memory.js';
-import { waitBetweenComments, waitBetweenSubreddits, estimateBatchTime } from '../timing.js';
-import { connectBrowser, closeBrowser } from '../browser.js';
+import { loadSkill, loadTracking, parseTracking, parseSubreddits, loadResource } from '../skill-loader.js';
+import { runBatchWithToolCalling } from '../agent-runner.js';
 
 interface SubredditStatus {
   name: string;
@@ -15,19 +10,13 @@ interface SubredditStatus {
 }
 
 /**
- * Run batch mode - fill today's quota
+ * Run batch mode - fill today's quota using LLM tool calling
  */
 export async function runBatchMode(skillName: string): Promise<void> {
-  output.header('Agent0 Batch Mode');
-
   try {
-    // Load skill
+    // Pre-load skill to show status summary
     const skill = await loadSkill(skillName);
-    output.success(`Loaded skill: ${skill.name}`);
-
-    // Connect to browser
-    await connectBrowser();
-
+    
     // Get subreddit configuration
     const subredditsContent = await loadResource(skill, 'subreddits');
     if (!subredditsContent) {
@@ -67,10 +56,9 @@ export async function runBatchMode(skillName: string): Promise<void> {
       return;
     }
 
-    // Show status
+    // Show pre-run status summary
     output.divider();
-    output.info(`Quota: ${totalCompleted}/${totalDaily} (${totalRemaining} remaining)`);
-    output.info(`Estimated time: ${estimateBatchTime(totalRemaining, statuses.filter(s => s.remaining > 0).length)}`);
+    output.info(`Current quota: ${totalCompleted}/${totalDaily} (${totalRemaining} remaining)`);
     output.divider();
 
     output.table(statuses.map(s => ({
@@ -82,119 +70,16 @@ export async function runBatchMode(skillName: string): Promise<void> {
 
     output.divider();
 
-    // Start batch progress
-    const progress = new BatchProgress(totalRemaining, 'Batch progress');
-    progress.start();
-
-    let completedThisSession = 0;
-    let consecutiveErrors = 0;
-    const maxConsecutiveErrors = 3;
-
-    // Sort subreddits by priority (least activity first)
-    const sortedStatuses = [...statuses]
+    // Build tracking summary for the LLM
+    const trackingSummary = statuses
       .filter(s => s.remaining > 0)
-      .sort((a, b) => a.todayComments - b.todayComments);
+      .map(s => `r/${s.name}: ${s.todayComments}/${s.dailyLimit} (${s.remaining} remaining)`)
+      .join('\n');
 
-    // Process each subreddit
-    for (const status of sortedStatuses) {
-      if (consecutiveErrors >= maxConsecutiveErrors) {
-        output.error(`Stopping after ${maxConsecutiveErrors} consecutive errors`);
-        break;
-      }
-
-      output.info(`\nStarting r/${status.name} (${status.remaining} comments to go)`);
-
-      let subredditComments = 0;
-
-      // Post comments for this subreddit
-      for (let i = 0; i < status.remaining; i++) {
-        progress.update(
-          completedThisSession,
-          `r/${status.name} (${subredditComments + 1}/${status.remaining})`
-        );
-
-        const result = await executeCommentWorkflow(skill, status.name);
-
-        if (result.success) {
-          completedThisSession++;
-          subredditComments++;
-          consecutiveErrors = 0;
-          
-          await logBatchProgress(skill, status.name, subredditComments, status.remaining);
-          progress.increment(`r/${status.name} (${subredditComments}/${status.remaining})`);
-
-          // Wait between comments (if not last)
-          if (i < status.remaining - 1) {
-            await waitBetweenComments();
-          }
-        } else {
-          consecutiveErrors++;
-          
-          if (result.error?.includes('All visible posts') || 
-              result.error?.includes('No suitable posts')) {
-            output.warning(`Skipping r/${status.name}: ${result.error}`);
-            break; // Move to next subreddit
-          }
-
-          const recovery = await errorRecovery(result.error || 'Unknown error');
-          
-          if (recovery === 'retry') {
-            i--; // Retry this iteration
-            continue;
-          } else if (recovery === 'skip') {
-            continue; // Skip to next comment
-          } else {
-            output.info('Stopping batch mode');
-            break;
-          }
-        }
-      }
-
-      // Log subreddit completion
-      if (subredditComments > 0) {
-        await logSubredditComplete(skill, status.name, subredditComments);
-        output.success(`Completed r/${status.name}: ${subredditComments} comments`);
-      }
-
-      // Wait between subreddits (if not last)
-      const isLast = sortedStatuses.indexOf(status) === sortedStatuses.length - 1;
-      if (!isLast && subredditComments > 0) {
-        await waitBetweenSubreddits();
-      }
-    }
-
-    progress.complete(`Batch complete: ${completedThisSession} comments posted`);
-
-    // Final report
-    printBatchReport(skill, statuses, completedThisSession);
+    // Run the agentic loop - LLM handles everything from here
+    await runBatchWithToolCalling(skillName, trackingSummary);
 
   } catch (error) {
     output.error(`Batch mode failed: ${error}`);
-  } finally {
-    await closeBrowser();
   }
-}
-
-/**
- * Print batch completion report
- */
-function printBatchReport(
-  skill: Skill,
-  statuses: SubredditStatus[],
-  completedThisSession: number
-): void {
-  output.divider();
-  output.header('Batch Completion Report');
-
-  output.info(`Total written this session: ${completedThisSession}`);
-  
-  output.table(statuses.map(s => ({
-    Subreddit: `r/${s.name}`,
-    Written: `${s.dailyLimit - s.remaining}/${s.dailyLimit}`,
-    Status: s.remaining === 0 ? '✓ Complete' : `${s.remaining} remaining`,
-  })));
-
-  output.divider();
-  output.info(`Tracking file: tracking/${skill.platform}/${new Date().toISOString().split('T')[0]}.md`);
-  output.info(`Leads file: leads/${skill.platform}.md`);
 }
