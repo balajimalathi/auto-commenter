@@ -7,16 +7,21 @@
 
 ## Activity Status by Subreddit
 
+## Target Subreddit List
+
 | Subreddit | Today's Comments | Daily Limit | Last Comment |
 |-----------|------------------|-------------|--------------|
-| r/WebDev | 0 | 3 | - |
-| r/ClaudeAI | 0 | 3 | - |
-| r/Cursor | 0 | 3 | - |
-| r/LocalLLaMA | 0 | 3 | - |
-| r/ChatGPT | 0 | 3 | - |
-| r/SideProject | 0 | 3 | - |
-| r/Obsidian | 0 | 3 | - |
-| r/Rag | 0 | 3 | - |
+| r/chatgptpro | 0 | 3 | - |
+| r/nocode | 0 | 3 | - |
+| r/openai | 0 | 3 | - |
+| r/saas | 0 | 3 | - |
+| r/microsaas | 0 | 3 | - |
+| r/micro_saas | 0 | 3 | - |
+| r/google_sheets | 0 | 3 | - |
+| r/perplexity_ai | 0 | 3 | - |
+| r/grok | 0 | 3 | - |
+| r/airtable | 0 | 3 | - |
+| r/sideproject | 0 | 3 | - |
 
 **Today's Total Comments**: 0
 **Next Target Subreddit**: (Select from subreddits with no activity yet)

@@ -121,13 +121,13 @@ In progress:
 → r/Cursor: 0/3 (current)
 
 Waiting:
-- r/LocalLLaMA: 0/3
-- r/ChatGPT: 0/3
-- r/SideProject: 0/3
-- r/Obsidian: 0/3
-- r/Rag: 0/3
+- r/grok: 0/3
+- r/airtable: 0/3
+- r/sideproject: 0/3
+- r/perplexity_ai: 0/3
+- r/micro_saas: 0/3
 
-Next: Move to r/LocalLLaMA after r/Cursor quota complete
+Next: Move to r/grok after r/Cursor quota complete
 ---
 ```
 
@@ -139,7 +139,7 @@ When skipping specific subreddit:
 
 When skipping, report:
 ```
-r/LocalLLaMA skipped - No suitable posts
+r/grok skipped - No suitable posts
 → Moving to r/ChatGPT
 ```
 
@@ -168,20 +168,23 @@ r/LocalLLaMA skipped - No suitable posts
 ### Results by Subreddit
 | Subreddit | Written | Skip Reason |
 |-----------|---------|-------------|
-| r/WebDev | 3/3 | - |
-| r/ClaudeAI | 3/3 | - |
-| r/Cursor | 2/3 | No suitable posts |
-| r/LocalLLaMA | 0/3 | All skipped (no technical discussion) |
-| r/ChatGPT | 3/3 | - |
-| r/SideProject | 3/3 | - |
-| r/Obsidian | 2/3 | No suitable posts |
-| r/Rag | 2/3 | No suitable posts |
+| r/chatgptpro | 3/3 | - |
+| r/nocode | 3/3 | - |
+| r/microsaas | 2/3 | No suitable posts |
+| r/grok | 0/3 | All skipped (no technical discussion) |
+| r/openai | 3/3 | - |
+| r/saas | 3/3 | - |
+| r/sideproject | 2/3 | No suitable posts |
+| r/perplexity_ai | 2/3 | No suitable posts |
+| r/airtable | 2/3 | No suitable posts |
+| r/micro_saas | 2/3 | No suitable posts |
+| r/google_sheets | 2/3 | No suitable posts |
 
 ### Potential Customers Discovered
 - 2 (updated in leads/reddit.md)
 
 ### Special Notes
-- r/LocalLLaMA: All skipped due to no technical discussion posts today
+- r/grok: All skipped due to no technical discussion posts today
 ---
 ```
 
