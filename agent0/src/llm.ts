@@ -1,5 +1,10 @@
 import { createSpinner } from './ui/progress.js';
-import { getToolDefinitions, executeTool, type ToolContext } from './tools.js';
+import {
+  getToolDefinitions,
+  executeTool,
+  type ToolContext,
+  type ToolDefinition,
+} from './tools.js';
 import { getProjectRoot, type Skill } from './skill-loader.js';
 
 export type ModelTask = 'summarize' | 'comment' | 'review' | 'analyze' | 'general';
@@ -65,6 +70,95 @@ export function getLLMConfig(): LLMConfig {
   };
 }
 
+export type ChatMessage = Message | ToolMessage;
+
+/**
+ * Serialize ChatMessage[] to OpenRouter API format
+ */
+function serializeMessages(messages: ChatMessage[]): object[] {
+  return messages.map((m) => {
+    if (m.role === 'tool') {
+      return {
+        role: 'tool',
+        tool_call_id: (m as ToolMessage).tool_call_id,
+        content: (m as ToolMessage).content,
+      };
+    }
+    const base = { role: m.role, content: (m as Message).content ?? '' };
+    if ((m as Message).tool_calls) {
+      return { ...base, tool_calls: (m as Message).tool_calls };
+    }
+    return base;
+  });
+}
+
+interface CallOpenRouterOptions {
+  model: string;
+  temperature: number;
+  tools?: ToolDefinition[];
+  messages: ChatMessage[];
+}
+
+interface CallOpenRouterResult {
+  content: string | null;
+  tool_calls?: Message['tool_calls'];
+  finish_reason?: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
+/**
+ * Single OpenRouter API call - used by both callLLM and callLLMRaw
+ */
+async function callOpenRouter(options: CallOpenRouterOptions): Promise<CallOpenRouterResult> {
+  const { model, temperature, messages, tools } = options;
+  const config = getLLMConfig();
+
+  const body: Record<string, unknown> = {
+    model,
+    messages: serializeMessages(messages),
+    temperature,
+    max_tokens: 4096,
+  };
+  if (tools) {
+    body.tools = tools;
+  }
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+      'X-Title': 'Agent0',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  const msg = data.choices[0]?.message;
+
+  return {
+    content: msg?.content ?? null,
+    tool_calls: msg?.tool_calls,
+    finish_reason: data.choices[0]?.finish_reason,
+    usage: data.usage
+      ? {
+          promptTokens: data.usage.prompt_tokens,
+          completionTokens: data.usage.completion_tokens,
+          totalTokens: data.usage.total_tokens,
+        }
+      : undefined,
+  };
+}
+
 /**
  * Call LLM via OpenRouter
  */
@@ -81,39 +175,12 @@ export async function callLLM(
   spinner?.start();
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
-        'HTTP-Referer': 'https://github.com/agent0',
-        'X-Title': 'Agent0',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: 4096,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    
+    const result = await callOpenRouter({ model, temperature, messages });
     spinner?.succeed(`Done (${task})`);
-
     return {
-      content: data.choices[0]?.message?.content || '',
+      content: result.content ?? '',
       model,
-      usage: data.usage ? {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-        totalTokens: data.usage.total_tokens,
-      } : undefined,
+      usage: result.usage,
     };
   } catch (error) {
     spinner?.fail(`Failed (${task})`);
@@ -352,8 +419,6 @@ export interface AgenticLoopOptions {
   showSpinner?: boolean;
 }
 
-export type ChatMessage = Message | ToolMessage;
-
 /**
  * Call LLM with tools and handle tool_calls in response
  */
@@ -366,53 +431,12 @@ async function callLLMRaw(
   tool_calls?: Message['tool_calls'];
   finish_reason?: string;
 }> {
-  const config = getLLMConfig();
-
-  const body: Record<string, unknown> = {
+  return callOpenRouter({
     model: options.model,
-    messages: messages.map((m) => {
-      if (m.role === 'tool') {
-        return {
-          role: 'tool',
-          tool_call_id: (m as ToolMessage).tool_call_id,
-          content: (m as ToolMessage).content,
-        };
-      }
-      const base = { role: m.role, content: (m as Message).content ?? '' };
-      if ((m as Message).tool_calls) {
-        return { ...base, tool_calls: (m as Message).tool_calls };
-      }
-      return base;
-    }),
-    tools,
-    max_tokens: 4096,
     temperature: options.temperature,
-  };
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-      'HTTP-Referer': 'https://github.com/agent0',
-      'X-Title': 'Agent0',
-    },
-    body: JSON.stringify(body),
+    messages,
+    tools,
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  const msg = data.choices[0]?.message;
-
-  return {
-    content: msg?.content ?? null,
-    tool_calls: msg?.tool_calls,
-    finish_reason: data.choices[0]?.finish_reason,
-  };
 }
 
 /**
