@@ -51,12 +51,25 @@ cd auto-commenter
 ### Step 2: Install Dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
-This installs the Playwright MCP server.
+This installs all workspace packages (agent0, extension, playwriter).
 
-### Step 3: Verify MCP Setup
+### Step 3: Browser Control (agent0 CLI)
+
+When using the agent0 CLI for Reddit automation, browser control goes through **Playwriter** and the **Chrome extension**:
+
+1. **Build playwriter** (required for MCP): `pnpm playwriter:build`
+2. **Build the extension**: `pnpm extension:build`
+3. **Install the extension** in Chrome (load unpacked from `extension/dist`)
+4. **Open Chrome** and click the Playwriter extension icon on a tab to enable it
+5. **Optional**: Start the relay manually with `pnpm relay` (or let agent0 start it automatically)
+6. **Run agent0**: `pnpm agent0 commenter "Post 1 comment on r/chatgptpro"`
+
+The extension connects to the relay at `ws://127.0.0.1:19988/extension`. If the extension is not connected, agent0 will fail with a clear error. Ensure Chrome is open and the extension is enabled on at least one tab.
+
+### Step 4: Verify MCP Setup (Claude/Cursor)
 
 Check that `.mcp/settings.json` exists and contains:
 

@@ -4,11 +4,17 @@
   "description": "Marketing automation framework with Claude Skills and Agent0 CLI",
   "type": "module",
   "scripts": {
-    "agent0": "cd agent0 && pnpm run dev --",
-    "agent0:build": "cd agent0 && pnpm run build",
-    "agent0:batch": "cd agent0 && pnpm run dev -- batch",
-    "agent0:interactive": "cd agent0 && pnpm run dev",
-    "install:all": "pnpm install && cd agent0 && pnpm install"
+    "agent0": "pnpm --filter agent0 run dev --",
+    "agent0:build": "pnpm --filter agent0 run build",
+    "agent0:batch": "pnpm --filter agent0 run dev -- batch",
+    "agent0:interactive": "pnpm --filter agent0 run dev",
+    "extension:build": "pnpm --filter mcp-extension run build",
+    "playwriter:build": "pnpm --filter playwriter run build",
+    "playwriter:mcp": "pnpm --filter playwriter run mcp",
+    "playwriter:relay": "pnpm --filter playwriter exec vite-node src/start-relay-server.ts",
+    "relay": "pnpm playwriter:relay",
+    "build": "pnpm agent0:build && pnpm extension:build",
+    "install:all": "pnpm install"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.1.31",

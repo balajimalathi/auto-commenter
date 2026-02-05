@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node", "chrome"]
+  },
+  "include": ["src"],
+  "exclude": ["src/a11y-client.ts"]
+}

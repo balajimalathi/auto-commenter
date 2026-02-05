@@ -6,7 +6,11 @@
       "Bash(npm ls:*)",
       "Bash(npx @anthropic-ai/mcp-client browser_navigate:*)",
       "Bash(npx playwright --version)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm install:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

@@ -1,220 +1,236 @@
-import puppeteer, { Browser, Page } from 'puppeteer-core';
-import { output } from './ui/output.js';
+/**
+ * Browser adapter that delegates all operations to playwriter MCP.
+ * Playwriter controls the browser via the extension relay (port 19988).
+ */
+
 import { createSpinner } from './ui/progress.js';
+import * as playwriter from './playwriter-client.js';
 
-let browserInstance: Browser | null = null;
-let activePage: Page | null = null;
+const DEFAULT_TIMEOUT = 30000;
 
-export interface BrowserConfig {
-  debugPort: number;
-  defaultTimeout: number;
-}
-
-export function getBrowserConfig(): BrowserConfig {
-  return {
-    debugPort: parseInt(process.env.CHROME_DEBUG_PORT || '9222', 10),
-    defaultTimeout: 30000,
-  };
+/**
+ * Escape a string for safe embedding in generated JavaScript.
+ * Use JSON.stringify for string literals; for CSS selectors use this or JSON.stringify.
+ */
+function escapeForCode(s: string): string {
+  return JSON.stringify(s);
 }
 
 /**
- * Connect to existing Chrome browser via CDP
+ * Extract the return value from playwriter execute result text.
+ * Format: "[return value] <content>\n"
  */
-export async function connectBrowser(): Promise<Browser> {
-  if (browserInstance) {
-    return browserInstance;
+function extractReturnValue(text: string): string | null {
+  const marker = '[return value] ';
+  const idx = text.indexOf(marker);
+  if (idx === -1) return null;
+  return text.slice(idx + marker.length).replace(/\n$/, '').trim();
+}
+
+/**
+ * Connect to browser via playwriter MCP (relay + extension).
+ */
+export async function connectBrowser(): Promise<void> {
+  if (playwriter.isConnected()) {
+    return;
   }
 
-  const config = getBrowserConfig();
-  const spinner = createSpinner('Connecting to Chrome...');
+  const spinner = createSpinner('Connecting to browser (Playwriter + extension)...');
   spinner.start();
 
   try {
-    browserInstance = await puppeteer.connect({
-      browserURL: `http://localhost:${config.debugPort}`,
-      defaultViewport: null,
-    });
-
-    spinner.succeed('Connected to Chrome');
-    
-    // Handle disconnection
-    browserInstance.on('disconnected', () => {
-      output.warning('Chrome disconnected');
-      browserInstance = null;
-      activePage = null;
-    });
-
-    return browserInstance;
+    await playwriter.connect();
+    spinner.succeed('Connected to browser');
   } catch (error) {
-    spinner.fail('Failed to connect to Chrome');
+    spinner.fail('Failed to connect to browser');
+    const msg = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Cannot connect to Chrome on port ${config.debugPort}. ` +
-      `Make sure Chrome is running with: --remote-debugging-port=${config.debugPort}`
+      `${msg}\n\n` +
+        'Ensure: 1) Chrome is open with the Playwriter extension installed. ' +
+        '2) Extension is connected (click the extension icon on a tab). ' +
+        '3) Run `pnpm relay` if the relay server is not running.'
     );
   }
 }
 
 /**
- * Get or create a page for operations
+ * Close browser connection (disconnect from playwriter MCP).
  */
-export async function getPage(): Promise<Page> {
-  if (activePage && !activePage.isClosed()) {
-    return activePage;
-  }
-
-  const browser = await connectBrowser();
-  const pages = await browser.pages();
-  
-  // Try to use existing tab, or create new one
-  if (pages.length > 0) {
-    activePage = pages[0];
-  } else {
-    activePage = await browser.newPage();
-  }
-
-  return activePage;
-}
-
-/**
- * Create a new tab
- */
-export async function createNewTab(): Promise<Page> {
-  const browser = await connectBrowser();
-  const page = await browser.newPage();
-  activePage = page;
-  return page;
+export async function closeBrowser(): Promise<void> {
+  await playwriter.disconnect();
 }
 
 /**
  * Navigate to URL
  */
 export async function navigate(url: string): Promise<void> {
-  const page = await getPage();
-  const config = getBrowserConfig();
-  
-  await page.goto(url, {
-    waitUntil: 'networkidle2',
-    timeout: config.defaultTimeout,
-  });
+  const code = `await page.goto(${escapeForCode(url)}, { waitUntil: 'domcontentloaded', timeout: ${DEFAULT_TIMEOUT} }); await page.waitForTimeout(2000);`;
+  const result = await playwriter.callExecute(code, DEFAULT_TIMEOUT + 5000);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
- * Get page content/snapshot
+ * Get page content/snapshot (raw HTML)
  */
 export async function getPageContent(): Promise<string> {
-  const page = await getPage();
-  return await page.content();
+  const code = `return await page.content();`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
+  const ret = extractReturnValue(result.text);
+  return ret ?? result.text;
 }
 
 /**
  * Get accessibility tree (similar to browser_snapshot)
  */
 export async function getAccessibilityTree(): Promise<string> {
-  const page = await getPage();
-  const snapshot = await page.accessibility.snapshot();
-  return JSON.stringify(snapshot, null, 2);
+  const code = `return await page.locator('body').ariaSnapshot();`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
+  const ret = extractReturnValue(result.text);
+  return ret ?? result.text;
 }
 
 /**
  * Get text content of the page
  */
 export async function getTextContent(): Promise<string> {
-  const page = await getPage();
-  return await page.evaluate(() => document.body.innerText);
+  const code = `return await page.evaluate(() => document.body.innerText);`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
+  const ret = extractReturnValue(result.text);
+  return ret ?? result.text;
 }
 
 /**
  * Click an element by selector
  */
 export async function click(selector: string): Promise<void> {
-  const page = await getPage();
-  await page.waitForSelector(selector, { visible: true });
-  await page.click(selector);
+  const code = `await page.locator(${escapeForCode(selector)}).click();`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
  * Type text into an element
  */
 export async function type(selector: string, text: string): Promise<void> {
-  const page = await getPage();
-  await page.waitForSelector(selector, { visible: true });
-  await page.type(selector, text);
+  const code = `await page.locator(${escapeForCode(selector)}).click(); await page.keyboard.type(${escapeForCode(text)}, { delay: 20 });`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
  * Fill an input (clear and type)
  */
 export async function fill(selector: string, text: string): Promise<void> {
-  const page = await getPage();
-  await page.waitForSelector(selector, { visible: true });
-  await page.$eval(selector, (el) => {
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-      el.value = '';
-    }
-  });
-  await page.type(selector, text);
+  const code = `await page.locator(${escapeForCode(selector)}).fill(${escapeForCode(text)});`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
  * Wait for selector
  */
 export async function waitFor(selector: string, timeout?: number): Promise<void> {
-  const page = await getPage();
-  const config = getBrowserConfig();
-  await page.waitForSelector(selector, {
-    visible: true,
-    timeout: timeout || config.defaultTimeout,
-  });
+  const t = timeout ?? DEFAULT_TIMEOUT;
+  const code = `await page.locator(${escapeForCode(selector)}).waitFor({ state: 'visible', timeout: ${t} });`;
+  const result = await playwriter.callExecute(code, t + 5000);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
  * Wait for navigation
  */
 export async function waitForNavigation(): Promise<void> {
-  const page = await getPage();
-  await page.waitForNavigation({ waitUntil: 'networkidle2' });
+  const code = `await page.waitForLoadState('domcontentloaded');`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
  * Scroll down
  */
 export async function scrollDown(pixels = 500): Promise<void> {
-  const page = await getPage();
-  await page.evaluate((px) => window.scrollBy(0, px), pixels);
+  const code = `await page.evaluate((px) => window.scrollBy(0, px), ${pixels});`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
  * Scroll to element
  */
 export async function scrollToElement(selector: string): Promise<void> {
-  const page = await getPage();
-  await page.$eval(selector, (el) => {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
+  const code = `await page.locator(${escapeForCode(selector)}).scrollIntoViewIfNeeded();`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
  * Get current URL
  */
 export async function getCurrentUrl(): Promise<string> {
-  const page = await getPage();
-  return page.url();
+  const code = `return page.url();`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
+  const ret = extractReturnValue(result.text);
+  return ret ?? '';
 }
 
 /**
  * Go back
  */
 export async function goBack(): Promise<void> {
-  const page = await getPage();
-  await page.goBack({ waitUntil: 'networkidle2' });
+  const code = `await page.goBack({ waitUntil: 'domcontentloaded' });`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
 }
 
 /**
- * Evaluate JavaScript in page context
+ * Evaluate JavaScript in page context.
+ * @param code - JS expression to run (e.g. "document.body.innerText")
  */
-export async function evaluate<T>(fn: () => T): Promise<T> {
-  const page = await getPage();
-  return await page.evaluate(fn);
+export async function evaluate<T = unknown>(code: string): Promise<T> {
+  const execCode = `return await page.evaluate((s) => eval(s), ${escapeForCode(code)});`;
+  const result = await playwriter.callExecute(execCode);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
+  const ret = extractReturnValue(result.text);
+  if (ret === null) {
+    throw new Error('Could not extract return value from evaluate');
+  }
+  try {
+    return JSON.parse(ret) as T;
+  } catch {
+    return ret as unknown as T;
+  }
 }
 
 /**
@@ -229,144 +245,110 @@ export interface RedditPost {
   upvotes: string;
 }
 
-export async function extractRedditPosts(): Promise<RedditPost[]> {
-  const page = await getPage();
-  
-  return await page.evaluate(() => {
-    const posts: RedditPost[] = [];
-    
-    // Try to find posts in the new Reddit UI
-    const postElements = document.querySelectorAll('article, [data-testid="post-container"], shreddit-post');
-    
-    postElements.forEach((post) => {
-      try {
-        const titleEl = post.querySelector('h3, [slot="title"], a[data-click-id="body"]');
-        const linkEl = post.querySelector('a[href*="/comments/"]');
-        const authorEl = post.querySelector('a[href*="/user/"]');
-        
-        if (titleEl && linkEl) {
-          posts.push({
-            title: titleEl.textContent?.trim() || '',
-            url: (linkEl as HTMLAnchorElement).href,
-            author: authorEl?.textContent?.replace('u/', '').trim() || '',
-            subreddit: window.location.pathname.split('/')[2] || '',
-            commentCount: 0, // Hard to reliably extract
-            upvotes: '0',
-          });
-        }
-      } catch {
-        // Skip malformed posts
+const EXTRACT_POSTS_CODE = `
+const posts = await page.evaluate(() => {
+  const result = [];
+  const postElements = document.querySelectorAll('article, [data-testid="post-container"], shreddit-post');
+  postElements.forEach((post) => {
+    try {
+      const titleEl = post.querySelector('h3, [slot="title"], a[data-click-id="body"]');
+      const linkEl = post.querySelector('a[href*="/comments/"]');
+      const authorEl = post.querySelector('a[href*="/user/"]');
+      if (titleEl && linkEl) {
+        result.push({
+          title: titleEl.textContent?.trim() || '',
+          url: linkEl.href,
+          author: authorEl?.textContent?.replace('u/', '').trim() || '',
+          subreddit: window.location.pathname.split('/')[2] || '',
+          commentCount: 0,
+          upvotes: '0'
+        });
       }
-    });
-
-    return posts.slice(0, 10); // Limit to first 10
+    } catch (e) {}
   });
+  return result.slice(0, 10);
+});
+return JSON.stringify(posts);
+`;
+
+export async function extractRedditPosts(): Promise<RedditPost[]> {
+  const result = await playwriter.callExecute(EXTRACT_POSTS_CODE);
+  if (result.isError) {
+    throw new Error(result.text);
+  }
+  const ret = extractReturnValue(result.text);
+  if (!ret) {
+    return [];
+  }
+  try {
+    return JSON.parse(ret) as RedditPost[];
+  } catch {
+    return [];
+  }
 }
 
 /**
- * Submit a Reddit comment.
- * Reddit structure: shreddit-composer > contenteditable div (placeholder "Join the conversation") > Comment button.
- * Uses Shadow DOM traversal for faceplate-form, shreddit-composer, reddit-rte.
+ * Submit a Reddit comment via playwriter execute.
  */
 export async function submitRedditComment(commentText: string): Promise<{ success: boolean; error?: string }> {
-  const page = await getPage();
-
+  const escaped = escapeForCode(commentText);
+  const code = `
+try {
+  const shredditComposer = page.locator('shreddit-composer').first();
+  let composerFound = false;
+  try { await shredditComposer.waitFor({ state: 'visible', timeout: 5000 }); composerFound = true; } catch {}
+  if (!composerFound) {
+    await page.evaluate(() => window.scrollBy(0, 500));
+    await page.waitForTimeout(1000);
+    try { await shredditComposer.waitFor({ state: 'visible', timeout: 3000 }); composerFound = true; } catch {}
+  }
+  if (!composerFound) return JSON.stringify({ success: false, error: 'Could not find shreddit-composer. Make sure you are logged into Reddit and on a post page.' });
+  await shredditComposer.scrollIntoViewIfNeeded();
+  await shredditComposer.click();
+  await page.waitForTimeout(1500);
+  let editor = page.locator('shreddit-composer div[contenteditable="true"]').first();
+  let editorFound = false;
+  try { await editor.waitFor({ state: 'visible', timeout: 5000 }); editorFound = true; } catch {}
+  if (!editorFound) {
+    editor = page.locator('div[contenteditable="true"][role="textbox"]').first();
+    try { await editor.waitFor({ state: 'visible', timeout: 3000 }); editorFound = true; } catch {}
+  }
+  if (!editorFound) {
+    editor = page.locator('div[contenteditable="true"]').first();
+    try { await editor.waitFor({ state: 'visible', timeout: 3000 }); editorFound = true; } catch {}
+  }
+  if (!editorFound) return JSON.stringify({ success: false, error: 'Comment editor did not activate.' });
+  await editor.click();
+  await page.waitForTimeout(300);
+  await page.keyboard.type(${escaped}, { delay: 20 });
+  await page.waitForTimeout(500);
+  let submitBtn = page.locator('shreddit-composer button[type="submit"][slot="submit-button"]').first();
+  let btnFound = false;
+  try { await submitBtn.waitFor({ state: 'visible', timeout: 3000 }); btnFound = true; } catch {}
+  if (!btnFound) { submitBtn = page.locator('button[slot="submit-button"]').first(); try { await submitBtn.waitFor({ state: 'visible', timeout: 2000 }); btnFound = true; } catch {} }
+  if (!btnFound) { submitBtn = page.locator('shreddit-composer button').filter({ hasText: /^Comment$/i }).first(); try { await submitBtn.waitFor({ state: 'visible', timeout: 2000 }); btnFound = true; } catch {} }
+  if (!btnFound) { submitBtn = page.getByRole('button', { name: /^Comment$/i }).first(); try { await submitBtn.waitFor({ state: 'visible', timeout: 2000 }); btnFound = true; } catch {} }
+  if (!btnFound) return JSON.stringify({ success: false, error: 'Could not find Comment submit button.' });
+  await submitBtn.click();
+  await page.waitForTimeout(2000);
+  return JSON.stringify({ success: true });
+} catch (e) {
+  return JSON.stringify({ success: false, error: e.message || String(e) });
+}
+`;
+  const result = await playwriter.callExecute(code, 45000);
+  if (result.isError) {
+    return { success: false, error: result.text };
+  }
+  const ret = extractReturnValue(result.text);
+  if (!ret) {
+    return { success: false, error: 'No return value from comment submission' };
+  }
   try {
-    // Step 1: Find the contenteditable div with "Join the conversation" (inside shreddit-composer/reddit-rte Shadow DOM)
-    const clicked = await page.evaluate(() => {
-      function findInShadowRoot(root: Document | ShadowRoot, predicate: (el: Element) => boolean): Element | null {
-        const all = root.querySelectorAll('*');
-        for (const el of all) {
-          if (predicate(el)) return el;
-        }
-        for (const node of all) {
-          if (node.shadowRoot) {
-            const found = findInShadowRoot(node.shadowRoot, predicate);
-            if (found) return found;
-          }
-        }
-        return null;
-      }
-
-      const placeholder = 'join the conversation';
-      const composer = findInShadowRoot(document, (e) => {
-        if (e.getAttribute('contenteditable') !== 'true') return false;
-        const p = (e.getAttribute('aria-placeholder') || e.getAttribute('placeholder') || '').toLowerCase();
-        const visible = (e as HTMLElement).offsetParent !== null;
-        return (p.includes(placeholder) || (p.includes('join') && p.includes('conversation'))) && visible;
-      });
-
-      if (!composer) {
-        const fallback = findInShadowRoot(document, (e) => {
-          const ce = e.getAttribute('contenteditable') === 'true';
-          const role = e.getAttribute('role') === 'textbox';
-          return ce && role && (e as HTMLElement).offsetParent !== null;
-        });
-        if (fallback) {
-          (fallback as HTMLElement).scrollIntoView({ block: 'center' });
-          (fallback as HTMLElement).click();
-          return true;
-        }
-        return false;
-      }
-
-      (composer as HTMLElement).scrollIntoView({ block: 'center' });
-      (composer as HTMLElement).click();
-      return true;
-    });
-
-    if (!clicked) {
-      return { success: false, error: 'Could not find comment box (contenteditable with "Join the conversation").' };
-    }
-
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Step 2: Type the comment
-    await page.keyboard.type(commentText, { delay: 20 });
-
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Step 3: Find and click Comment button - button[type="submit"] with "Comment" or slot="submit-button"
-    const buttonClicked = await page.evaluate(() => {
-      function findAllInShadowRoot(root: Document | ShadowRoot, tag: string): Element[] {
-        const results: Element[] = [];
-        const els = root.querySelectorAll(tag);
-        results.push(...els);
-        const all = root.querySelectorAll('*');
-        for (const node of all) {
-          if (node.shadowRoot) {
-            results.push(...findAllInShadowRoot(node.shadowRoot, tag));
-          }
-        }
-        return results;
-      }
-
-      const buttons = findAllInShadowRoot(document, 'button');
-      for (const btn of buttons) {
-        const type = (btn.getAttribute('type') || '').toLowerCase();
-        const slot = btn.getAttribute('slot') || '';
-        const text = (btn.textContent || '').trim().toLowerCase();
-        const isVisible = (btn as HTMLElement).offsetParent !== null;
-        const isCommentSubmit =
-          type === 'submit' &&
-          (slot === 'submit-button' || text === 'comment' || (text.includes('comment') && !text.includes('cancel')));
-        if (isVisible && isCommentSubmit) {
-          (btn as HTMLElement).click();
-          return true;
-        }
-      }
-      return false;
-    });
-
-    if (!buttonClicked) {
-      return { success: false, error: 'Could not find Comment button (button[type="submit"]).' };
-    }
-
-    await new Promise((r) => setTimeout(r, 1500));
-    return { success: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { success: false, error: `Failed to post comment: ${message}` };
+    const parsed = JSON.parse(ret) as { success: boolean; error?: string };
+    return parsed;
+  } catch {
+    return { success: false, error: result.text };
   }
 }
 
@@ -374,24 +356,16 @@ export async function submitRedditComment(commentText: string): Promise<{ succes
  * Check if logged into Reddit
  */
 export async function isLoggedIntoReddit(): Promise<boolean> {
-  const page = await getPage();
-  
-  return await page.evaluate(() => {
-    // Check for login indicators
+  const code = `return await page.evaluate(() => {
     const userMenu = document.querySelector('[id*="user-drawer"]') ||
-                     document.querySelector('button[aria-label*="account"]') ||
-                     document.querySelector('a[href*="/user/"]');
+      document.querySelector('button[aria-label*="account"]') ||
+      document.querySelector('a[href*="/user/"]');
     return !!userMenu;
-  });
-}
-
-/**
- * Close browser connection
- */
-export async function closeBrowser(): Promise<void> {
-  if (browserInstance) {
-    await browserInstance.disconnect();
-    browserInstance = null;
-    activePage = null;
+  });`;
+  const result = await playwriter.callExecute(code);
+  if (result.isError) {
+    return false;
   }
+  const ret = extractReturnValue(result.text);
+  return ret === 'true';
 }
