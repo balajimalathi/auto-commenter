@@ -6,17 +6,6 @@ import type { Skill } from './skill-loader.js';
 import { confirmWithTimeout } from './ui/prompts.js';
 import { output } from './ui/output.js';
 
-/**
- * Custom error thrown when a Reddit comment fails to post.
- * Used to signal the agentic loop to stop immediately.
- */
-export class CommentPostError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CommentPostError';
-  }
-}
-
 export type ToolContext = {
   skill?: Skill;
   projectRoot: string;
@@ -126,132 +115,22 @@ export function getToolDefinitions(): ToolDefinition[] {
     {
       type: 'function',
       function: {
-        name: 'browser_navigate',
-        description: 'Navigate the browser to a URL. Use for Reddit pages (subreddits, posts, inbox).',
+        name: 'playwriter_execute',
+        description:
+          'Execute Playwriter/Playwright JavaScript in the browser. Scope: page, state, context, accessibilitySnapshot, getCDPSession, etc. Use semicolons for multi-statement scripts. Return values via return statement or JSON.stringify. Examples: await page.goto(url), await page.locator(sel).click(), await accessibilitySnapshot({ page })',
         parameters: {
           type: 'object',
           properties: {
-            url: {
+            code: {
               type: 'string',
-              description: 'Full URL to navigate to (e.g. https://www.reddit.com/r/chatgptpro/new/)',
+              description: 'JavaScript code to run in the browser',
+            },
+            timeout: {
+              type: 'number',
+              description: 'Timeout in milliseconds (default 30000)',
             },
           },
-          required: ['url'],
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_snapshot',
-        description: 'Get the page structure (accessibility tree). Use to understand page layout before clicking or typing.',
-        parameters: {
-          type: 'object',
-          properties: {},
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_get_text',
-        description: 'Get the visible text content of the current page. Use to read post content, comments, or page content.',
-        parameters: {
-          type: 'object',
-          properties: {},
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_extract_posts',
-        description: 'Extract Reddit posts from the current page. Returns title, url, author, subreddit for each post.',
-        parameters: {
-          type: 'object',
-          properties: {},
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_click',
-        description: 'Click an element. Provide a brief description or selector. Use after browser_snapshot to identify elements.',
-        parameters: {
-          type: 'object',
-          properties: {
-            selector: {
-              type: 'string',
-              description: 'CSS selector or element description (e.g. button[type="submit"], textarea, .comment-box)',
-            },
-          },
-          required: ['selector'],
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_type',
-        description: 'Type text into an input element. Use for comment box, search, etc.',
-        parameters: {
-          type: 'object',
-          properties: {
-            selector: {
-              type: 'string',
-              description: 'CSS selector for the input (e.g. textarea, div[contenteditable="true"])',
-            },
-            text: {
-              type: 'string',
-              description: 'Text to type',
-            },
-          },
-          required: ['selector', 'text'],
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_scroll',
-        description: 'Scroll the page down to load more content.',
-        parameters: {
-          type: 'object',
-          properties: {
-            pixels: {
-              type: 'string',
-              description: 'Pixels to scroll (default 500)',
-            },
-          },
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_current_url',
-        description: 'Get the current page URL.',
-        parameters: {
-          type: 'object',
-          properties: {},
-        },
-      },
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'browser_submit_reddit_comment',
-        description: 'Submit a comment on Reddit. Use AFTER request_approval is approved. Must be on a post page.',
-        parameters: {
-          type: 'object',
-          properties: {
-            content: {
-              type: 'string',
-              description: 'The approved comment text to submit',
-            },
-          },
-          required: ['content'],
+          required: ['code'],
         },
       },
     },
@@ -351,58 +230,14 @@ export async function executeTool(
         return JSON.stringify(result, null, 2);
       }
 
-      case 'browser_navigate': {
-        const url = args.url as string;
-        await browser.navigate(url);
-        return JSON.stringify({ success: true, url });
-      }
-
-      case 'browser_snapshot': {
-        const snapshot = await browser.getAccessibilityTree();
-        return snapshot.length > 4000 ? snapshot.substring(0, 4000) + '\n...[truncated]' : snapshot;
-      }
-
-      case 'browser_get_text': {
-        const text = await browser.getTextContent();
-        return text.length > 8000 ? text.substring(0, 8000) + '\n...[truncated]' : text;
-      }
-
-      case 'browser_extract_posts': {
-        const posts = await browser.extractRedditPosts();
-        return JSON.stringify(posts, null, 2);
-      }
-
-      case 'browser_click': {
-        const selector = args.selector as string;
-        await browser.click(selector);
-        return JSON.stringify({ success: true });
-      }
-
-      case 'browser_type': {
-        const selector = args.selector as string;
-        const text = args.text as string;
-        await browser.type(selector, text);
-        return JSON.stringify({ success: true });
-      }
-
-      case 'browser_scroll': {
-        const pixels = parseInt(String(args.pixels || 500), 10);
-        await browser.scrollDown(pixels);
-        return JSON.stringify({ success: true });
-      }
-
-      case 'browser_current_url': {
-        const url = await browser.getCurrentUrl();
-        return JSON.stringify({ url });
-      }
-
-      case 'browser_submit_reddit_comment': {
-        const content = args.content as string;
-        const result = await browser.submitRedditComment(content);
-        if (!result.success) {
-          throw new CommentPostError(result.error ?? 'Failed to post comment');
+      case 'playwriter_execute': {
+        const code = args.code as string;
+        const timeout = (args.timeout as number) ?? 30000;
+        const result = await browser.executeScript(code, timeout);
+        if (result.isError) {
+          return JSON.stringify({ error: result.text });
         }
-        return JSON.stringify(result);
+        return result.text;
       }
 
       case 'request_approval': {
@@ -457,12 +292,6 @@ export async function executeTool(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     output.error(`Tool "${name}" failed: ${message}`);
-
-    // Re-throw CommentPostError to halt the agentic loop
-    if (error instanceof CommentPostError) {
-      throw error;
-    }
-
     return JSON.stringify({ error: message });
   }
 }

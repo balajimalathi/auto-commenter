@@ -1,8 +1,9 @@
 {
-  "playwright": {
+  "playwriter": {
     "command": "npx",
     "args": [
-      "@playwright/mcp@latest"
+      "-y",
+      "playwriter@latest"
     ]
   }
 }

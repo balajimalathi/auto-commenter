@@ -1,36 +1,49 @@
 /**
  * MCP client that connects to playwriter MCP server and forwards execute/reset calls.
- * Uses the playwriter npm package installed on the host (global or project dependency).
  * Playwriter controls the browser via the extension relay (port 19988).
+ *
+ * Connection modes:
+ * - Default (stdio): Spawns `playwriter mcp` as subprocess. Set nothing.
+ * - URL mode: Connect to external MCP server. Set PLAYWRITER_MCP_URL (e.g. http://localhost:8931/sse)
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 let client: Client | null = null;
-let transport: StdioClientTransport | null = null;
+let transport: Transport | null = null;
 
 export interface ExecuteResult {
   text: string;
   isError?: boolean;
 }
 
+function createTransport(): Transport {
+  const url = process.env.PLAYWRITER_MCP_URL;
+  if (url) {
+    return new StreamableHTTPClientTransport(new URL(url));
+  }
+  return new StdioClientTransport({
+    command: 'playwriter',
+    args: ['mcp'],
+    stderr: 'pipe',
+    env: { ...process.env } as Record<string, string>,
+  });
+}
+
 /**
- * Connect to playwriter MCP server. Spawns the host-installed playwriter as subprocess.
- * Uses `playwriter mcp` (expects playwriter in PATH from global/project install).
+ * Connect to playwriter MCP server.
+ * - Default: Spawns `playwriter mcp` (expects playwriter in PATH).
+ * - If PLAYWRITER_MCP_URL is set: Connects to that URL (Streamable HTTP).
  */
 export async function connect(): Promise<void> {
   if (client) {
     return;
   }
 
-  transport = new StdioClientTransport({
-    command: 'playwriter',
-    args: ['mcp'],
-    stderr: 'pipe',
-    env: { ...process.env } as Record<string, string>,
-  });
-
+  transport = createTransport();
   client = new Client({
     name: 'agent0',
     version: '1.0.0',

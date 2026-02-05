@@ -14,7 +14,7 @@
   <a href="https://discord.gg/vRp5Zh3HGu"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
 </p>
 
->A marketing automation framework using Claude Skills and Playwright MCP for authentic community engagement. Features personalized comment generation, target community selection, daily tracking, batch execution, and lead identification.
+>A marketing automation framework using Claude Skills and Playwriter MCP for authentic community engagement. Features personalized comment generation, target community selection, daily tracking, batch execution, and lead identification.
 
 **Currently supports Reddit** — easily extensible to Twitter, LinkedIn, Discord, and other platforms by adding personalization files.
 
@@ -176,7 +176,7 @@ MIT License - see [LICENSE](LICENSE)
 
 ---
 
-**Built with [Claude AI](https://claude.ai) and [Playwright MCP](https://github.com/executeautomation/playwright-mcp)**
+**Built with [Claude AI](https://claude.ai) and [Playwriter MCP](https://github.com/remorses/playwriter)**
 
 ---
 

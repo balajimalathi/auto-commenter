@@ -75,14 +75,16 @@ Check that `.mcp/settings.json` exists and contains:
 
 ```json
 {
-  "playwright": {
+  "playwriter": {
     "command": "npx",
-    "args": [
-      "@playwright/mcp@latest"
-    ]
+    "args": ["-y", "playwriter@latest"]
   }
 }
 ```
+
+**Connection options (agent0):**
+- **Default (stdio)**: agent0 spawns `playwriter mcp` automatically. No config needed.
+- **URL mode**: To connect to an externally-running Playwriter MCP server, set `PLAYWRITER_MCP_URL` (e.g. `http://localhost:8931/sse`). Requires an stdio-to-SSE bridge.
 
 ---
 
@@ -244,7 +246,7 @@ Save the personalization guide as:
 ### If Something Goes Wrong
 
 - Check that you're logged into Reddit
-- Verify Playwright MCP is installed: `npx @playwright/mcp@latest --version`
+- Verify Playwriter MCP is installed: `npx playwriter@latest --version`
 - Make sure personalization file exists
 - Check Claude's error messages
 

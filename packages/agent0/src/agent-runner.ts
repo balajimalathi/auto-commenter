@@ -2,7 +2,6 @@ import { output } from './ui/output.js';
 import { loadSkill, loadResource, type Skill } from './skill-loader.js';
 import { readMemory } from './memory.js';
 import { runAgenticLoop } from './llm.js';
-import { CommentPostError } from './tools.js';
 import { connectBrowser, closeBrowser } from './browser.js';
 
 export type AgentMode = 'batch' | 'commenter' | 'notifications' | 'trending' | 'post';
@@ -25,6 +24,7 @@ function buildSystemPrompt(
   memory: string,
   personalization: string | null,
   product: string | null,
+  playwriterSnippets: string | null,
   modeContext?: ModeContext
 ): string {
   const baseToolsSection = `## Available Tools
@@ -32,15 +32,13 @@ You have access to these tools. Use them to accomplish the task:
 - read_file: Read files (skill instructions, tracking, personalization, subreddit rules, memory)
 - write_file, append_file: Update tracking files, leads, memory
 - list_dir: Discover files
-- browser_navigate: Go to Reddit URLs (subreddits, posts, inbox)
-- browser_snapshot: Get page structure
-- browser_get_text: Get visible page text
-- browser_extract_posts: Extract Reddit posts from current page
-- browser_click, browser_type: Interact with page elements
-- browser_submit_reddit_comment: Submit approved comment on Reddit
-- browser_scroll: Scroll to load more content
-- browser_current_url: Get current URL
+- playwriter_execute: Execute Playwriter JavaScript in the browser. ALWAYS use the exact snippets from the "Playwriter Snippets" section below. Do NOT use accessibilitySnapshot. Use user-defined selectors (e.g. await page.click('comment-composer-host')). Scope: page, state, context.
 - request_approval: Request human approval before posting (required before any comment/post submission)`;
+
+  const playwriterSnippetsSection = playwriterSnippets
+    ? `## Playwriter Snippets (use these exact patterns)
+${playwriterSnippets}`
+    : '';
 
   const projectStructure = `## Project Structure
 - Skills: .claude/skills/${skill.name}/
@@ -77,14 +75,14 @@ Your task:
 1. Read today's tracking file (tracking/${skill.platform}/YYYY-MM-DD.md) to see current progress
 2. Identify subreddits that haven't reached their daily limit
 3. For each subreddit with remaining quota:
-   - Navigate to the subreddit (https://www.reddit.com/r/{subreddit}/new/)
-   - Extract posts using browser_extract_posts
+   - Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/r/{subreddit}/new/', ...)
+   - Use playwriter_execute with Extract Reddit Posts snippet to get posts
    - Select a suitable post to comment on
-   - Navigate to the post
-   - Analyze the post content
+   - Navigate to the post URL via playwriter_execute
+   - Use playwriter_execute with Get Page Text snippet to read post content
    - Generate a helpful, natural comment following personalization guidelines
    - IMPORTANT: Call request_approval with the proposed comment before posting
-   - If approved, use browser_submit_reddit_comment(content) to submit (Reddit-specific, handles Shadow DOM)
+   - If approved, use playwriter_execute: await page.click('comment-composer-host'), then type and submit
    - Update tracking file with the new comment
    - Update memory with the action
 4. Respect delays between comments (wait 2-5 minutes between comments)
@@ -99,17 +97,17 @@ CRITICAL: Commenter writes COMMENTS on EXISTING posts. NEVER create a new post. 
 
 Your task: Write comments on existing posts based on the user's instruction.
 
-Workflow for each comment:
+Workflow for each comment (use exact snippets from Playwriter Snippets section):
 1. Parse the instruction: which subreddit (r/X), how many comments
-2. Navigate to the subreddit feed (e.g. https://www.reddit.com/r/{subreddit}/new/)
-3. Scroll the page (browser_scroll) to load posts if needed
-4. Extract posts using browser_extract_posts to see available posts
+2. Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/r/{subreddit}/new/', ...)
+3. Use playwriter_execute with Scroll snippet if needed
+4. Use playwriter_execute with Extract Reddit Posts snippet to get posts
 5. Select ONE post to comment on (pick one with good engagement potential)
-6. CLICK on the post or navigate to its URL to OPEN the post page (you must view the full post)
-7. On the post page: use browser_get_text to read and summarize the post content
+6. Use playwriter_execute to open the post (navigate to URL)
+7. On the post page: use playwriter_execute with Get Page Text snippet to read content
 8. Write a helpful, natural comment that replies to that specific post (following personalization guidelines)
 9. Call request_approval with content_type="comment" and your proposed comment text
-10. If approved: use browser_submit_reddit_comment(content="your approved comment").
+10. If approved: use playwriter_execute: await page.click('comment-composer-host'), then use Type into Input snippet, then submit
 11. Update tracking and memory
 12. If more comments needed: go back to subreddit, scroll, pick another post, repeat`;
       break;
@@ -118,17 +116,17 @@ Workflow for each comment:
       modeInstructions = `## Notifications Mode Instructions
 Your task: Check Reddit notifications and respond to any replies.
 
-Workflow:
-1. Navigate to Reddit inbox (https://www.reddit.com/message/inbox/)
-2. Get the page content to see notifications
+Workflow (use exact snippets from Playwriter Snippets section):
+1. Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/message/inbox/', ...)
+2. Use playwriter_execute with Get Page Text snippet to read notifications
 3. Identify any replies to your comments that need responses
 4. For each reply that warrants a response:
    - Read the context (original post, your comment, their reply)
    - Generate a thoughtful, helpful response
    - IMPORTANT: Call request_approval with the proposed reply before posting
-   - If approved, navigate to the reply and respond
+   - If approved, use playwriter_execute with Click by Selector snippet, then Type into Input snippet
    - Update memory with the interaction
-5. Mark notifications as read if possible
+5. Mark notifications as read if possible via playwriter_execute
 6. Report what notifications you handled`;
       break;
 
@@ -136,11 +134,9 @@ Workflow:
       modeInstructions = `## Trending Mode Instructions
 Your task: Find trending posts for inspiration or reposting opportunities.
 
-Workflow:
-1. Navigate to the specified subreddit's hot or rising page
-   - Hot: https://www.reddit.com/r/{subreddit}/hot/
-   - Rising: https://www.reddit.com/r/{subreddit}/rising/
-2. Extract posts using browser_extract_posts
+Workflow (use exact snippets from Playwriter Snippets section):
+1. Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/r/{subreddit}/hot/', ...) or /rising/
+2. Use playwriter_execute with Extract Reddit Posts snippet to get post data
 3. For each interesting post:
    - Note the title, engagement level, topic
    - Analyze why it's trending (topic relevance, timing, format)
@@ -155,7 +151,7 @@ ${modeContext?.subreddit ? `Target subreddit: r/${modeContext.subreddit}` : 'Che
       modeInstructions = `## Post Mode Instructions
 Your task: Draft and publish a new post based on the user's instruction.
 
-Workflow:
+Workflow (use exact snippets from Playwriter Snippets section):
 1. Parse the instruction to understand: which subreddit, what topic/content
 2. Read subreddit rules for the target subreddit
 3. Draft the post title and content following:
@@ -164,10 +160,8 @@ Workflow:
    - The user's intent
 4. IMPORTANT: Call request_approval with the full draft (title + content) before posting
 5. If approved:
-   - Navigate to the subreddit
-   - Click the "Create Post" button
-   - Fill in the title and content
-   - Submit the post
+   - Use playwriter_execute with Navigation snippet to go to the subreddit
+   - Use playwriter_execute with Click by Selector and Type into Input snippets to fill and submit
 6. Update memory with the post details
 7. Report the post URL or any issues`;
       break;
@@ -176,6 +170,8 @@ Workflow:
   return `You are Agent0, an autonomous agent executing Reddit engagement tasks.
 
 ${baseToolsSection}
+
+${playwriterSnippetsSection}
 
 ${modeInstructions}
 
@@ -197,7 +193,7 @@ ${projectStructure}
 5. Be autonomous - complete the full task without asking questions
 6. If something fails, log the error and try an alternative approach
 7. Report what you accomplished when done
-8. In commenter mode: ONLY write comments on existing posts. Open the post first, call request_approval, then use browser_submit_reddit_comment(content) to submit - do NOT use browser_type for Reddit.`;
+8. In commenter mode: ONLY write comments on existing posts. Open the post first, call request_approval, then use playwriter_execute to submit the comment.`;
 }
 
 /**
@@ -222,6 +218,7 @@ export async function runWithToolCalling(
     const memory = await readMemory(skill);
     const personalization = await loadResource(skill, 'personalization_reddit');
     const product = await loadResource(skill, 'product');
+    const playwriterSnippets = await loadResource(skill, 'playwriter_snippets');
 
     // Build mode-specific system prompt
     const systemPrompt = buildSystemPrompt(
@@ -232,13 +229,14 @@ export async function runWithToolCalling(
       memory,
       personalization,
       product,
+      playwriterSnippets,
       modeContext
     );
 
     output.info(`Instruction: ${userPrompt}`);
     output.divider();
 
-    // Connect browser (required for browser_* tools)
+    // Connect browser (required for playwriter_execute)
     await connectBrowser();
 
     // Mode-appropriate iteration limits:
@@ -267,15 +265,8 @@ export async function runWithToolCalling(
     return result;
 
   } catch (error) {
-    if (error instanceof CommentPostError) {
-      output.divider();
-      output.error(`COMMENT POSTING FAILED: ${error.message}`);
-      output.error('Agent stopped. The comment was NOT posted successfully.');
-      output.info('Check the browser to verify the state, then retry.');
-    } else {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      output.error(`${mode} mode failed: ${errorMessage}`);
-    }
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    output.error(`${mode} mode failed: ${errorMessage}`);
     throw error;
   } finally {
     await closeBrowser();

@@ -363,18 +363,26 @@ import { existsSync as existsSync3 } from "fs";
 // src/playwriter-client.ts
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 var client = null;
 var transport = null;
-async function connect() {
-  if (client) {
-    return;
+function createTransport() {
+  const url = process.env.PLAYWRITER_MCP_URL;
+  if (url) {
+    return new StreamableHTTPClientTransport(new URL(url));
   }
-  transport = new StdioClientTransport({
+  return new StdioClientTransport({
     command: "playwriter",
     args: ["mcp"],
     stderr: "pipe",
     env: { ...process.env }
   });
+}
+async function connect() {
+  if (client) {
+    return;
+  }
+  transport = createTransport();
   client = new Client({
     name: "agent0",
     version: "1.0.0"
@@ -419,16 +427,6 @@ function extractText(content) {
 }
 
 // src/browser.ts
-var DEFAULT_TIMEOUT = 3e4;
-function escapeForCode(s) {
-  return JSON.stringify(s);
-}
-function extractReturnValue(text3) {
-  const marker = "[return value] ";
-  const idx = text3.indexOf(marker);
-  if (idx === -1) return null;
-  return text3.slice(idx + marker.length).replace(/\n$/, "").trim();
-}
 async function connectBrowser() {
   if (isConnected()) {
     return;
@@ -451,215 +449,8 @@ Ensure: 1) Chrome is open with the Playwriter extension installed. 2) Extension 
 async function closeBrowser() {
   await disconnect();
 }
-async function navigate(url) {
-  const code = `await page.goto(${escapeForCode(url)}, { waitUntil: 'domcontentloaded', timeout: ${DEFAULT_TIMEOUT} }); await page.waitForTimeout(2000);`;
-  const result = await callExecute(code, DEFAULT_TIMEOUT + 5e3);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-}
-async function getAccessibilityTree() {
-  const code = `return await page.locator('body').ariaSnapshot();`;
-  const result = await callExecute(code);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-  const ret = extractReturnValue(result.text);
-  return ret ?? result.text;
-}
-async function getTextContent() {
-  const code = `return await page.evaluate(() => document.body.innerText);`;
-  const result = await callExecute(code);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-  const ret = extractReturnValue(result.text);
-  return ret ?? result.text;
-}
-async function click(selector) {
-  const code = `await page.locator(${escapeForCode(selector)}).click();`;
-  const result = await callExecute(code);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-}
-async function type(selector, text3) {
-  const code = `await page.locator(${escapeForCode(selector)}).click(); await page.keyboard.type(${escapeForCode(text3)}, { delay: 20 });`;
-  const result = await callExecute(code);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-}
-async function scrollDown(pixels = 500) {
-  const code = `await page.evaluate((px) => window.scrollBy(0, px), ${pixels});`;
-  const result = await callExecute(code);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-}
-async function getCurrentUrl() {
-  const code = `return page.url();`;
-  const result = await callExecute(code);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-  const ret = extractReturnValue(result.text);
-  return ret ?? "";
-}
-var EXTRACT_POSTS_CODE = `
-const posts = await page.evaluate(() => {
-  const result = [];
-  const postElements = document.querySelectorAll('article, [data-testid="post-container"], shreddit-post');
-  postElements.forEach((post) => {
-    try {
-      const titleEl = post.querySelector('h3, [slot="title"], a[data-click-id="body"]');
-      const linkEl = post.querySelector('a[href*="/comments/"]');
-      const authorEl = post.querySelector('a[href*="/user/"]');
-      if (titleEl && linkEl) {
-        result.push({
-          title: titleEl.textContent?.trim() || '',
-          url: linkEl.href,
-          author: authorEl?.textContent?.replace('u/', '').trim() || '',
-          subreddit: window.location.pathname.split('/')[2] || '',
-          commentCount: 0,
-          upvotes: '0'
-        });
-      }
-    } catch (e) {}
-  });
-  return result.slice(0, 10);
-});
-return JSON.stringify(posts);
-`;
-async function extractRedditPosts() {
-  const result = await callExecute(EXTRACT_POSTS_CODE);
-  if (result.isError) {
-    throw new Error(result.text);
-  }
-  const ret = extractReturnValue(result.text);
-  if (!ret) {
-    return [];
-  }
-  try {
-    return JSON.parse(ret);
-  } catch {
-    return [];
-  }
-}
-async function submitRedditComment(commentText) {
-  const escaped = escapeForCode(commentText);
-  const code = `
-try {
-  // Playwright locators don't reliably find elements inside Reddit's custom element tree
-  // through the Playwriter relay. Use page.evaluate() with direct DOM APIs instead,
-  // including recursive shadow DOM traversal.
-
-  // Helper: find element by selector, searching through shadow roots if needed.
-  // Defined once on window so all evaluate calls can use it.
-  await page.evaluate(() => {
-    window.__find = (selector, root) => {
-      root = root || document;
-      let el = root.querySelector(selector);
-      if (el) return el;
-      const children = root.querySelectorAll('*');
-      for (let i = 0; i < children.length; i++) {
-        if (children[i].shadowRoot) {
-          el = window.__find(selector, children[i].shadowRoot);
-          if (el) return el;
-        }
-      }
-      return null;
-    };
-  });
-
-  // Step 1: Click "Join the conversation" trigger to open the composer.
-  let triggerClicked = await page.evaluate(() => {
-    const trigger = window.__find('[data-testid="trigger-button"]')
-      || window.__find('faceplate-textarea-input[placeholder="Join the conversation"]');
-    if (!trigger) return false;
-    trigger.scrollIntoView({ block: 'center' });
-    trigger.click();
-    return true;
-  });
-
-  if (!triggerClicked) {
-    // Scroll to bottom and retry \u2014 composer might be below the fold
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1500);
-    triggerClicked = await page.evaluate(() => {
-      const trigger = window.__find('[data-testid="trigger-button"]')
-        || window.__find('faceplate-textarea-input[placeholder="Join the conversation"]');
-      if (!trigger) return false;
-      trigger.scrollIntoView({ block: 'center' });
-      trigger.click();
-      return true;
-    });
-  }
-
-  if (!triggerClicked) {
-    const diag = await page.evaluate(() => ({
-      url: location.href,
-      hasShredditComposer: !!window.__find('shreddit-composer'),
-      hasAsyncLoader: !!window.__find('shreddit-async-loader'),
-      hasFaceplateTextarea: !!window.__find('faceplate-textarea-input'),
-      testIds: [...document.querySelectorAll('[data-testid]')].map(e => e.getAttribute('data-testid')).slice(0, 15),
-    }));
-    return JSON.stringify({ success: false, error: 'Trigger not found. Diag: ' + JSON.stringify(diag) });
-  }
-
-  await page.waitForTimeout(1500);
-
-  // Step 2: Find the editor, focus it, and type the comment.
-  const editorReady = await page.evaluate(() => {
-    const editor = window.__find('div[contenteditable="true"]');
-    if (!editor) return false;
-    editor.scrollIntoView({ block: 'center' });
-    editor.focus();
-    editor.click();
-    return true;
-  });
-
-  if (!editorReady) {
-    return JSON.stringify({ success: false, error: 'Editor not found after clicking trigger.' });
-  }
-
-  await page.waitForTimeout(300);
-  await page.keyboard.type(${escaped}, { delay: 20 });
-  await page.waitForTimeout(500);
-
-  // Step 3: Click the "Comment" submit button.
-  const submitted = await page.evaluate(() => {
-    const btn = window.__find('button[slot="submit-button"]')
-      || window.__find('button[type="submit"]');
-    if (!btn) return false;
-    btn.click();
-    return true;
-  });
-
-  if (!submitted) {
-    return JSON.stringify({ success: false, error: 'Submit button not found.' });
-  }
-
-  await page.waitForTimeout(2000);
-  return JSON.stringify({ success: true });
-} catch (e) {
-  return JSON.stringify({ success: false, error: e.message || String(e) });
-}
-`;
-  const result = await callExecute(code, 3e4);
-  if (result.isError) {
-    return { success: false, error: result.text };
-  }
-  const ret = extractReturnValue(result.text);
-  if (!ret) {
-    return { success: false, error: "No return value from comment submission" };
-  }
-  try {
-    const parsed = JSON.parse(ret);
-    return parsed;
-  } catch {
-    return { success: false, error: result.text };
-  }
+async function executeScript(code, timeout = 3e4) {
+  return callExecute(code, timeout);
 }
 
 // src/ui/prompts.ts
@@ -720,12 +511,6 @@ ${defaultValue ? "\u2713 Auto-approved" : "\u2717 Auto-rejected"}`);
 }
 
 // src/tools.ts
-var CommentPostError = class extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "CommentPostError";
-  }
-};
 function getToolDefinitions() {
   return [
     {
@@ -807,132 +592,21 @@ function getToolDefinitions() {
     {
       type: "function",
       function: {
-        name: "browser_navigate",
-        description: "Navigate the browser to a URL. Use for Reddit pages (subreddits, posts, inbox).",
+        name: "playwriter_execute",
+        description: "Execute Playwriter/Playwright JavaScript in the browser. Scope: page, state, context, accessibilitySnapshot, getCDPSession, etc. Use semicolons for multi-statement scripts. Return values via return statement or JSON.stringify. Examples: await page.goto(url), await page.locator(sel).click(), await accessibilitySnapshot({ page })",
         parameters: {
           type: "object",
           properties: {
-            url: {
+            code: {
               type: "string",
-              description: "Full URL to navigate to (e.g. https://www.reddit.com/r/chatgptpro/new/)"
-            }
-          },
-          required: ["url"]
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_snapshot",
-        description: "Get the page structure (accessibility tree). Use to understand page layout before clicking or typing.",
-        parameters: {
-          type: "object",
-          properties: {}
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_get_text",
-        description: "Get the visible text content of the current page. Use to read post content, comments, or page content.",
-        parameters: {
-          type: "object",
-          properties: {}
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_extract_posts",
-        description: "Extract Reddit posts from the current page. Returns title, url, author, subreddit for each post.",
-        parameters: {
-          type: "object",
-          properties: {}
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_click",
-        description: "Click an element. Provide a brief description or selector. Use after browser_snapshot to identify elements.",
-        parameters: {
-          type: "object",
-          properties: {
-            selector: {
-              type: "string",
-              description: 'CSS selector or element description (e.g. button[type="submit"], textarea, .comment-box)'
-            }
-          },
-          required: ["selector"]
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_type",
-        description: "Type text into an input element. Use for comment box, search, etc.",
-        parameters: {
-          type: "object",
-          properties: {
-            selector: {
-              type: "string",
-              description: 'CSS selector for the input (e.g. textarea, div[contenteditable="true"])'
+              description: "JavaScript code to run in the browser"
             },
-            text: {
-              type: "string",
-              description: "Text to type"
+            timeout: {
+              type: "number",
+              description: "Timeout in milliseconds (default 30000)"
             }
           },
-          required: ["selector", "text"]
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_scroll",
-        description: "Scroll the page down to load more content.",
-        parameters: {
-          type: "object",
-          properties: {
-            pixels: {
-              type: "string",
-              description: "Pixels to scroll (default 500)"
-            }
-          }
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_current_url",
-        description: "Get the current page URL.",
-        parameters: {
-          type: "object",
-          properties: {}
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "browser_submit_reddit_comment",
-        description: "Submit a comment on Reddit. Use AFTER request_approval is approved. Must be on a post page.",
-        parameters: {
-          type: "object",
-          properties: {
-            content: {
-              type: "string",
-              description: "The approved comment text to submit"
-            }
-          },
-          required: ["content"]
+          required: ["code"]
         }
       }
     },
@@ -1019,50 +693,14 @@ async function executeTool(name, args, ctx) {
         }));
         return JSON.stringify(result, null, 2);
       }
-      case "browser_navigate": {
-        const url = args.url;
-        await navigate(url);
-        return JSON.stringify({ success: true, url });
-      }
-      case "browser_snapshot": {
-        const snapshot = await getAccessibilityTree();
-        return snapshot.length > 4e3 ? snapshot.substring(0, 4e3) + "\n...[truncated]" : snapshot;
-      }
-      case "browser_get_text": {
-        const text3 = await getTextContent();
-        return text3.length > 8e3 ? text3.substring(0, 8e3) + "\n...[truncated]" : text3;
-      }
-      case "browser_extract_posts": {
-        const posts = await extractRedditPosts();
-        return JSON.stringify(posts, null, 2);
-      }
-      case "browser_click": {
-        const selector = args.selector;
-        await click(selector);
-        return JSON.stringify({ success: true });
-      }
-      case "browser_type": {
-        const selector = args.selector;
-        const text3 = args.text;
-        await type(selector, text3);
-        return JSON.stringify({ success: true });
-      }
-      case "browser_scroll": {
-        const pixels = parseInt(String(args.pixels || 500), 10);
-        await scrollDown(pixels);
-        return JSON.stringify({ success: true });
-      }
-      case "browser_current_url": {
-        const url = await getCurrentUrl();
-        return JSON.stringify({ url });
-      }
-      case "browser_submit_reddit_comment": {
-        const content = args.content;
-        const result = await submitRedditComment(content);
-        if (!result.success) {
-          throw new CommentPostError(result.error ?? "Failed to post comment");
+      case "playwriter_execute": {
+        const code = args.code;
+        const timeout = args.timeout ?? 3e4;
+        const result = await executeScript(code, timeout);
+        if (result.isError) {
+          return JSON.stringify({ error: result.text });
         }
-        return JSON.stringify(result);
+        return result.text;
       }
       case "request_approval": {
         const content = args.content;
@@ -1103,9 +741,6 @@ async function executeTool(name, args, ctx) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     output.error(`Tool "${name}" failed: ${message}`);
-    if (error instanceof CommentPostError) {
-      throw error;
-    }
     return JSON.stringify({ error: message });
   }
 }
@@ -1299,16 +934,7 @@ async function runAgenticLoop(systemPrompt, userPrompt, options = {}) {
       spinner?.start(
         `[${tIdx + 1}/${result.tool_calls.length}] ${tc.function.name}${detail}`
       );
-      let toolResult;
-      try {
-        toolResult = await executeTool(tc.function.name, args, toolContext);
-      } catch (error) {
-        if (error instanceof CommentPostError) {
-          spinner?.fail(`Comment posting failed: ${error.message}`);
-          throw error;
-        }
-        throw error;
-      }
+      const toolResult = await executeTool(tc.function.name, args, toolContext);
       try {
         const parsed = JSON.parse(toolResult);
         if (parsed.error) {
@@ -1341,14 +967,7 @@ You have access to these tools. Use them to accomplish the task:
 - read_file: Read files (skill instructions, tracking, personalization, subreddit rules, memory)
 - write_file, append_file: Update tracking files, leads, memory
 - list_dir: Discover files
-- browser_navigate: Go to Reddit URLs (subreddits, posts, inbox)
-- browser_snapshot: Get page structure
-- browser_get_text: Get visible page text
-- browser_extract_posts: Extract Reddit posts from current page
-- browser_click, browser_type: Interact with page elements
-- browser_submit_reddit_comment: Submit approved comment on Reddit
-- browser_scroll: Scroll to load more content
-- browser_current_url: Get current URL
+- playwriter_execute: Execute Playwriter/Playwright JavaScript in the browser. Write full Playwright API code. Scope: page, state, context, accessibilitySnapshot, getCDPSession. Examples: await page.goto(url), await accessibilitySnapshot({ page }), await page.locator('aria-ref=e5').click()
 - request_approval: Request human approval before posting (required before any comment/post submission)`;
   const projectStructure = `## Project Structure
 - Skills: .claude/skills/${skill.name}/
@@ -1374,14 +993,14 @@ Your task:
 1. Read today's tracking file (tracking/${skill.platform}/YYYY-MM-DD.md) to see current progress
 2. Identify subreddits that haven't reached their daily limit
 3. For each subreddit with remaining quota:
-   - Navigate to the subreddit (https://www.reddit.com/r/{subreddit}/new/)
-   - Extract posts using browser_extract_posts
+   - Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/r/{subreddit}/new/')
+   - Use playwriter_execute to get posts or snapshot: await accessibilitySnapshot({ page }) or extract posts via page.evaluate
    - Select a suitable post to comment on
-   - Navigate to the post
-   - Analyze the post content
+   - Navigate to the post URL via playwriter_execute
+   - Analyze the post content using playwriter_execute (page content or accessibilitySnapshot)
    - Generate a helpful, natural comment following personalization guidelines
    - IMPORTANT: Call request_approval with the proposed comment before posting
-   - If approved, use browser_submit_reddit_comment(content) to submit (Reddit-specific, handles Shadow DOM)
+   - If approved, use playwriter_execute to submit the comment (write a script that finds the composer, types, and clicks submit - Reddit uses Shadow DOM)
    - Update tracking file with the new comment
    - Update memory with the action
 4. Respect delays between comments (wait 2-5 minutes between comments)
@@ -1398,15 +1017,15 @@ Your task: Write comments on existing posts based on the user's instruction.
 
 Workflow for each comment:
 1. Parse the instruction: which subreddit (r/X), how many comments
-2. Navigate to the subreddit feed (e.g. https://www.reddit.com/r/{subreddit}/new/)
-3. Scroll the page (browser_scroll) to load posts if needed
-4. Extract posts using browser_extract_posts to see available posts
+2. Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/r/{subreddit}/new/')
+3. Use playwriter_execute to scroll if needed: await page.evaluate(() => window.scrollBy(0, 500))
+4. Use playwriter_execute with accessibilitySnapshot or page.evaluate to get posts
 5. Select ONE post to comment on (pick one with good engagement potential)
-6. CLICK on the post or navigate to its URL to OPEN the post page (you must view the full post)
-7. On the post page: use browser_get_text to read and summarize the post content
+6. Use playwriter_execute to open the post (navigate to URL or click)
+7. On the post page: use playwriter_execute to read content (e.g. return await page.evaluate(() => document.body.innerText))
 8. Write a helpful, natural comment that replies to that specific post (following personalization guidelines)
 9. Call request_approval with content_type="comment" and your proposed comment text
-10. If approved: use browser_submit_reddit_comment(content="your approved comment").
+10. If approved: use playwriter_execute with a script that submits the comment (find composer, type, click submit - Reddit uses Shadow DOM)
 11. Update tracking and memory
 12. If more comments needed: go back to subreddit, scroll, pick another post, repeat`;
       break;
@@ -1415,16 +1034,16 @@ Workflow for each comment:
 Your task: Check Reddit notifications and respond to any replies.
 
 Workflow:
-1. Navigate to Reddit inbox (https://www.reddit.com/message/inbox/)
-2. Get the page content to see notifications
+1. Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/message/inbox/')
+2. Use playwriter_execute to get page content: await accessibilitySnapshot({ page }) or page.evaluate for text
 3. Identify any replies to your comments that need responses
 4. For each reply that warrants a response:
    - Read the context (original post, your comment, their reply)
    - Generate a thoughtful, helpful response
    - IMPORTANT: Call request_approval with the proposed reply before posting
-   - If approved, navigate to the reply and respond
+   - If approved, use playwriter_execute to navigate and submit the reply
    - Update memory with the interaction
-5. Mark notifications as read if possible
+5. Mark notifications as read if possible via playwriter_execute
 6. Report what notifications you handled`;
       break;
     case "trending":
@@ -1432,10 +1051,8 @@ Workflow:
 Your task: Find trending posts for inspiration or reposting opportunities.
 
 Workflow:
-1. Navigate to the specified subreddit's hot or rising page
-   - Hot: https://www.reddit.com/r/{subreddit}/hot/
-   - Rising: https://www.reddit.com/r/{subreddit}/rising/
-2. Extract posts using browser_extract_posts
+1. Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/r/{subreddit}/hot/') or /rising/
+2. Use playwriter_execute to get posts: accessibilitySnapshot or page.evaluate to extract post data
 3. For each interesting post:
    - Note the title, engagement level, topic
    - Analyze why it's trending (topic relevance, timing, format)
@@ -1458,10 +1075,8 @@ Workflow:
    - The user's intent
 4. IMPORTANT: Call request_approval with the full draft (title + content) before posting
 5. If approved:
-   - Navigate to the subreddit
-   - Click the "Create Post" button
-   - Fill in the title and content
-   - Submit the post
+   - Use playwriter_execute to navigate to the subreddit
+   - Use playwriter_execute to click "Create Post", fill title/content, and submit
 6. Update memory with the post details
 7. Report the post URL or any issues`;
       break;
@@ -1490,7 +1105,7 @@ ${projectStructure}
 5. Be autonomous - complete the full task without asking questions
 6. If something fails, log the error and try an alternative approach
 7. Report what you accomplished when done
-8. In commenter mode: ONLY write comments on existing posts. Open the post first, call request_approval, then use browser_submit_reddit_comment(content) to submit - do NOT use browser_type for Reddit.`;
+8. In commenter mode: ONLY write comments on existing posts. Open the post first, call request_approval, then use playwriter_execute to submit the comment.`;
 }
 async function runWithToolCalling(skillName, mode, userPrompt, modeContext) {
   output.header(`Agent0 ${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode`);
@@ -1532,15 +1147,8 @@ async function runWithToolCalling(skillName, mode, userPrompt, modeContext) {
     console.log(result);
     return result;
   } catch (error) {
-    if (error instanceof CommentPostError) {
-      output.divider();
-      output.error(`COMMENT POSTING FAILED: ${error.message}`);
-      output.error("Agent stopped. The comment was NOT posted successfully.");
-      output.info("Check the browser to verify the state, then retry.");
-    } else {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      output.error(`${mode} mode failed: ${errorMessage}`);
-    }
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    output.error(`${mode} mode failed: ${errorMessage}`);
     throw error;
   } finally {
     await closeBrowser();
@@ -1718,14 +1326,14 @@ function createCLI() {
   });
   return program;
 }
-async function promptForInstruction(type2) {
+async function promptForInstruction(type) {
   const placeholders = {
     comment: "Post 3 comments on r/chatgptpro",
     post: "Write a post about..."
   };
   const result = await p2.text({
-    message: `Enter ${type2} instruction:`,
-    placeholder: placeholders[type2] ?? "Enter instruction...",
+    message: `Enter ${type} instruction:`,
+    placeholder: placeholders[type] ?? "Enter instruction...",
     validate: (value) => {
       if (!value.trim()) return "Instruction is required";
       return void 0;

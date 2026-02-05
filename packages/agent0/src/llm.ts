@@ -2,7 +2,6 @@ import { createSpinner } from './ui/progress.js';
 import {
   getToolDefinitions,
   executeTool,
-  CommentPostError,
   type ToolContext,
   type ToolDefinition,
 } from './tools.js';
@@ -580,16 +579,7 @@ export async function runAgenticLoop(
         `[${tIdx + 1}/${result.tool_calls.length}] ${tc.function.name}${detail}`
       );
 
-      let toolResult: string;
-      try {
-        toolResult = await executeTool(tc.function.name, args, toolContext);
-      } catch (error) {
-        if (error instanceof CommentPostError) {
-          spinner?.fail(`Comment posting failed: ${error.message}`);
-          throw error;
-        }
-        throw error;
-      }
+      const toolResult = await executeTool(tc.function.name, args, toolContext);
 
       // Check for non-fatal errors in tool result
       try {
