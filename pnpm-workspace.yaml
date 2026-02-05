@@ -1,4 +1,2 @@
 packages:
-  - 'agent0'
-  - 'extension'
-  - 'playwriter'
+  - 'packages/*'

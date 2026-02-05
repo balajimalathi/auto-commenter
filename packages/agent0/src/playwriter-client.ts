@@ -11,10 +11,10 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Monorepo root (parent of agent0 package) */
+/** Monorepo root (parent of packages/) */
 function getMonorepoRoot(): string {
-  const agent0Root = path.resolve(__dirname, '..');
-  return path.resolve(agent0Root, '..');
+  const agent0Root = path.resolve(__dirname, '..'); // packages/agent0
+  return path.resolve(agent0Root, '..', '..'); // repo root
 }
 
 let client: Client | null = null;

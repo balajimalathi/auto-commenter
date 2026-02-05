@@ -62,7 +62,7 @@ When using the agent0 CLI for Reddit automation, browser control goes through **
 
 1. **Build playwriter** (required for MCP): `pnpm playwriter:build`
 2. **Build the extension**: `pnpm extension:build`
-3. **Install the extension** in Chrome (load unpacked from `extension/dist`)
+3. **Install the extension** in Chrome (load unpacked from `packages/extension/dist`)
 4. **Open Chrome** and click the Playwriter extension icon on a tab to enable it
 5. **Optional**: Start the relay manually with `pnpm relay` (or let agent0 start it automatically)
 6. **Run agent0**: `pnpm agent0 commenter "Post 1 comment on r/chatgptpro"`

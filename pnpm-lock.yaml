@@ -18,7 +18,7 @@ importers:
         specifier: ^1.58.1
         version: 1.58.1
 
-  agent0:
+  packages/agent0:
     dependencies:
       '@clack/prompts':
         specifier: ^0.7.0
@@ -61,7 +61,7 @@ importers:
         specifier: ^5.4.3
         version: 5.9.3
 
-  extension:
+  packages/extension:
     dependencies:
       playwriter:
         specifier: workspace:*
@@ -86,7 +86,7 @@ importers:
         specifier: ^3.1.1
         version: 3.2.0(vite@5.4.21(@types/node@24.10.10))
 
-  playwriter:
+  packages/playwriter:
     dependencies:
       '@hono/node-server':
         specifier: ^1.19.6
@@ -4310,7 +4310,7 @@ snapshots:
       normalize-path: 3.0.0
       readdirp: 3.6.0
     optionalDependencies:
-      fsevents: 2.3.2
+      fsevents: 2.3.3
 
   chokidar@4.0.3:
     dependencies:
@@ -5617,7 +5617,7 @@ snapshots:
       '@rollup/rollup-win32-ia32-msvc': 4.57.1
       '@rollup/rollup-win32-x64-gnu': 4.57.1
       '@rollup/rollup-win32-x64-msvc': 4.57.1
-      fsevents: 2.3.2
+      fsevents: 2.3.3
 
   router@2.2.0:
     dependencies:
