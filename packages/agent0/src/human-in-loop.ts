@@ -10,9 +10,12 @@ export interface HumanInLoopConfig {
  * Get human-in-the-loop configuration
  */
 export function getHumanInLoopConfig(): HumanInLoopConfig {
+  const waitMsEnv = process.env.HUMAN_IN_LOOP_WAIT_MS || '0';
+  const waitMs = waitMsEnv === '0' ? 0 : parseInt(waitMsEnv, 10);
+  
   return {
-    waitMs: parseInt(process.env.HUMAN_IN_LOOP_WAIT_MS || '5000', 10),
-    autoApprove: true,
+    waitMs,
+    autoApprove: process.env.HUMAN_IN_LOOP_AUTO_APPROVE === 'true',
   };
 }
 
@@ -85,7 +88,7 @@ export async function approvePost(
   const approved = await confirmWithTimeout({
     message: 'Create this post?',
     timeoutMs: config.waitMs,
-    defaultValue: false, // Default to NOT auto-approving posts
+    defaultValue: config.autoApprove,
   });
 
   return approved;

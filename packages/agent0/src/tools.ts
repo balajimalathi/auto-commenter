@@ -246,8 +246,9 @@ export async function executeTool(
         const context = args.context as string;
         const title = args.title as string | undefined;
 
-        // Get timeout from environment
-        const waitMs = parseInt(process.env.HUMAN_IN_LOOP_WAIT_MS || '5000', 10);
+        // Get timeout from environment (0 = infinite wait)
+        const waitMsEnv = process.env.HUMAN_IN_LOOP_WAIT_MS || '0';
+        const waitMs = waitMsEnv === '0' ? 0 : parseInt(waitMsEnv, 10);
 
         // Display the content for approval
         output.divider();
@@ -265,8 +266,8 @@ export async function executeTool(
           output.comment(content, contentType === 'reply' ? 'Proposed Reply' : 'Proposed Comment');
         }
 
-        // Posts default to NOT auto-approve, comments/replies default to auto-approve
-        const defaultApprove = contentType !== 'post';
+        // Default to requiring explicit approval unless HUMAN_IN_LOOP_AUTO_APPROVE=true
+        const defaultApprove = process.env.HUMAN_IN_LOOP_AUTO_APPROVE === 'true';
 
         const approved = await confirmWithTimeout({
           message: `Approve this ${contentType}?`,

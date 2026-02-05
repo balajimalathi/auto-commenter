@@ -85,8 +85,12 @@ Your task:
    - If approved, use playwriter_execute: await page.click('comment-composer-host'), then type and submit
    - Update tracking file with the new comment
    - Update memory with the action
+   - After completing 3 comments for a subreddit (or if no suitable posts), move to the next subreddit
 4. Respect delays between comments (wait 2-5 minutes between comments)
-5. Continue until quota is filled or all subreddits are complete
+5. CRITICAL: Continue through ALL subreddits until:
+   - All subreddits have reached their quota (3 comments each), OR
+   - There are no suitable posts left in any subreddit
+6. Report progress after each subreddit completion
 
 ${modeContext?.trackingSummary ? `Current tracking summary:\n${modeContext.trackingSummary}` : ''}`;
       break;
@@ -240,16 +244,16 @@ export async function runWithToolCalling(
     await connectBrowser();
 
     // Mode-appropriate iteration limits:
-    // commenter: multi-comment runs, needs more headroom (~8-10 iterations per comment)
+    // commenter: multi-comment runs (~8-10 iterations per comment)
+    // batch: full quota across all subreddits (~6-7 iterations per comment x 33 comments)
     // notifications: focused tasks
-    // batch: needs more headroom for multiple subreddits
     // trending/post: moderate complexity
     const maxIterationsMap: Record<AgentMode, number> = {
       commenter: 30,
       notifications: 10,
       trending: 8,
       post: 10,
-      batch: 20,
+      batch: 250,
     };
 
     // Run the agentic loop

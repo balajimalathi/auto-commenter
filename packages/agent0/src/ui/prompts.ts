@@ -15,71 +15,136 @@ export interface SelectOption<T> {
 
 /**
  * Confirm with optional auto-approve timeout
+ * Supports infinite wait when timeoutMs is 0
  */
 export async function confirmWithTimeout(
   options: ConfirmOptions
 ): Promise<boolean> {
-  const { message, timeoutMs = 5000, defaultValue = true } = options;
+  const { message, timeoutMs = 0, defaultValue = false } = options;
+  const infiniteWait = timeoutMs === 0;
 
   return new Promise((resolve) => {
     let resolved = false;
-    let countdown = Math.ceil(timeoutMs / 1000);
+    let countdown = infiniteWait ? 0 : Math.ceil(timeoutMs / 1000);
+    let interval: NodeJS.Timeout | null = null;
+    let timeout: NodeJS.Timeout | null = null;
 
-    // Start countdown display
-    const interval = setInterval(() => {
-      countdown--;
-      if (countdown > 0 && !resolved) {
-        process.stdout.write(
-          `\r${message} (auto-${defaultValue ? 'approve' : 'reject'} in ${countdown}s) [y/n] `
-        );
+    // Cleanup function
+    const cleanup = () => {
+      if (interval) clearInterval(interval);
+      if (timeout) clearTimeout(timeout);
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false);
+        process.stdin.removeAllListeners('data');
       }
-    }, 1000);
+    };
 
-    // Auto-resolve after timeout
-    const timeout = setTimeout(() => {
+    // Handle Ctrl+C (SIGINT)
+    const handleSigInt = () => {
       if (!resolved) {
         resolved = true;
-        clearInterval(interval);
-        console.log(`\n${defaultValue ? '✓ Auto-approved' : '✗ Auto-rejected'}`);
-        resolve(defaultValue);
+        cleanup();
+        console.log('\n\nOperation cancelled.');
+        process.exit(0);
       }
-    }, timeoutMs);
+    };
+    process.on('SIGINT', handleSigInt);
+
+    // Start countdown display (only if not infinite wait)
+    if (!infiniteWait) {
+      interval = setInterval(() => {
+        countdown--;
+        if (countdown > 0 && !resolved) {
+          process.stdout.write(
+            `\r${message} (auto-${defaultValue ? 'approve' : 'reject'} in ${countdown}s) [y/n/Ctrl+C] `
+          );
+        }
+      }, 1000);
+    }
+
+    // Auto-resolve after timeout (only if not infinite wait)
+    if (!infiniteWait) {
+      timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          process.removeListener('SIGINT', handleSigInt);
+          console.log(`\n${defaultValue ? '✓ Auto-approved' : '✗ Auto-rejected'}`);
+          resolve(defaultValue);
+        }
+      }, timeoutMs);
+    }
 
     // Initial prompt
-    process.stdout.write(
-      `${message} (auto-${defaultValue ? 'approve' : 'reject'} in ${countdown}s) [y/n] `
-    );
+    const promptText = infiniteWait
+      ? `${message} [y/n/Ctrl+C] `
+      : `${message} (auto-${defaultValue ? 'approve' : 'reject'} in ${countdown}s) [y/n/Ctrl+C] `;
+    process.stdout.write(promptText);
 
-    // Listen for immediate input
+    // Listen for input
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
       process.stdin.resume();
-      process.stdin.once('data', (data) => {
-        if (!resolved) {
+      process.stdin.setEncoding('utf8');
+
+      const dataHandler = (data: Buffer) => {
+        if (resolved) return;
+
+        const key = data.toString();
+        
+        // Handle Ctrl+C
+        if (key === '\x03') {
           resolved = true;
-          clearTimeout(timeout);
-          clearInterval(interval);
-          process.stdin.setRawMode(false);
-          
-          const key = data.toString().toLowerCase();
-          if (key === 'y' || key === '\r' || key === '\n') {
-            console.log('\n✓ Approved');
-            resolve(true);
-          } else if (key === 'n') {
-            console.log('\n✗ Rejected');
-            resolve(false);
-          } else if (key === '\x03') { // Ctrl+C
-            console.log('\n');
-            process.exit(0);
-          } else {
-            // Any other key, treat as confirm
-            console.log('\n✓ Approved');
-            resolve(true);
-          }
+          cleanup();
+          process.removeListener('SIGINT', handleSigInt);
+          console.log('\n\nOperation cancelled.');
+          process.exit(0);
+          return;
         }
-      });
+
+        // Handle Enter key
+        if (key === '\r' || key === '\n') {
+          resolved = true;
+          cleanup();
+          process.removeListener('SIGINT', handleSigInt);
+          console.log('\n✓ Approved');
+          resolve(true);
+          return;
+        }
+
+        // Handle y/Y
+        if (key.toLowerCase() === 'y') {
+          resolved = true;
+          cleanup();
+          process.removeListener('SIGINT', handleSigInt);
+          console.log('\n✓ Approved');
+          resolve(true);
+          return;
+        }
+
+        // Handle n/N
+        if (key.toLowerCase() === 'n') {
+          resolved = true;
+          cleanup();
+          process.removeListener('SIGINT', handleSigInt);
+          console.log('\n✗ Rejected');
+          resolve(false);
+          return;
+        }
+
+        // Ignore other keys (don't resolve, keep waiting)
+      };
+
+      process.stdin.on('data', dataHandler);
     } else {
-      // Non-TTY: just wait for timeout
+      // Non-TTY: if infinite wait, this will hang forever (expected)
+      // If timeout, wait for timeout
+      if (!infiniteWait && timeout) {
+        // Already set up above
+      } else if (infiniteWait) {
+        // Non-TTY with infinite wait - this is problematic, but we'll let it hang
+        // User should configure a timeout for non-TTY environments
+      }
     }
   });
 }
