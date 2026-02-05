@@ -428,8 +428,6 @@ function formatToolDetail(name: string, args: Record<string, unknown>): string {
       return args.selector ? ` (${args.selector})` : '';
     case 'browser_submit_reddit_comment':
       return ' (posting comment)';
-    case 'request_approval':
-      return args.content_type ? ` (${args.content_type})` : '';
     default:
       return '';
   }
@@ -602,7 +600,7 @@ export async function runAgenticLoop(
     if (anyToolFailed) {
       spinner?.warn(`Tools executed (with errors): ${toolNames}`);
     } else {
-      spinner?.succeed(`Tools executed: ${toolNames}`);
+      //spinner?.succeed(`Tools executed: ${toolNames}`);
     }
 
     // Trim old tool results to prevent context bloat on subsequent LLM calls

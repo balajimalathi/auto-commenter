@@ -45,11 +45,12 @@ return posts;
 
 ## Reddit Comment Submission (exact working steps)
 
-Execute these steps in sequence:
+Execute these steps in sequence. **Always wait 2 seconds after each click** so the UI can respond before the next action.
 
 ### Step 1: Click the comment composer trigger
 ```javascript
 await page.click('comment-composer-host');
+await new Promise(r => setTimeout(r, 2000));
 ```
 
 ### Step 2: Wait for the text editor to appear
@@ -60,6 +61,7 @@ await page.waitForSelector('[contenteditable="true"][role="textbox"]');
 ### Step 3: Click the text editor to focus it
 ```javascript
 await page.click('[contenteditable="true"][role="textbox"]');
+await new Promise(r => setTimeout(r, 2000));
 ```
 
 ### Step 4: Type the comment (with human-like delay)
@@ -70,4 +72,5 @@ await page.keyboard.type('Your comment text here', { delay: 20 });
 ### Step 5: Click the submit button
 ```javascript
 await page.locator('button[slot="submit-button"]').click();
+await new Promise(r => setTimeout(r, 2000));
 ```

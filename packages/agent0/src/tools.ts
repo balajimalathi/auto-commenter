@@ -3,7 +3,6 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import * as browser from './browser.js';
 import type { Skill } from './skill-loader.js';
-import { confirmWithTimeout } from './ui/prompts.js';
 import { output } from './ui/output.js';
 
 export type ToolContext = {
@@ -134,35 +133,6 @@ export function getToolDefinitions(): ToolDefinition[] {
         },
       },
     },
-    {
-      type: 'function',
-      function: {
-        name: 'request_approval',
-        description: 'Request human approval before posting a comment, reply, or post. REQUIRED before any content submission. Shows the content to the user and waits for approval (auto-approves after timeout).',
-        parameters: {
-          type: 'object',
-          properties: {
-            content: {
-              type: 'string',
-              description: 'The content to be posted (comment text, reply text, or post body)',
-            },
-            content_type: {
-              type: 'string',
-              description: 'Type of content: "comment", "reply", or "post"',
-            },
-            context: {
-              type: 'string',
-              description: 'Context for the content (e.g., "r/chatgptpro - Post: How to use GPT-4" or "Reply to u/user123")',
-            },
-            title: {
-              type: 'string',
-              description: 'Post title (only required for content_type="post")',
-            },
-          },
-          required: ['content', 'content_type', 'context'],
-        },
-      },
-    },
   ];
 }
 
@@ -238,53 +208,6 @@ export async function executeTool(
           return JSON.stringify({ error: result.text });
         }
         return result.text;
-      }
-
-      case 'request_approval': {
-        const content = args.content as string;
-        const contentType = args.content_type as string;
-        const context = args.context as string;
-        const title = args.title as string | undefined;
-
-        // Get timeout from environment (0 = infinite wait)
-        const waitMsEnv = process.env.HUMAN_IN_LOOP_WAIT_MS || '0';
-        const waitMs = waitMsEnv === '0' ? 0 : parseInt(waitMsEnv, 10);
-
-        // Display the content for approval
-        output.divider();
-        output.info(`Approval Request: ${contentType.toUpperCase()}`);
-        output.dim(context);
-        
-        if (title) {
-          output.info(`Title: ${title}`);
-        }
-        
-        // Use boxen-style display from output
-        if (contentType === 'post' && title) {
-          output.post(title, content);
-        } else {
-          output.comment(content, contentType === 'reply' ? 'Proposed Reply' : 'Proposed Comment');
-        }
-
-        // Default to requiring explicit approval unless HUMAN_IN_LOOP_AUTO_APPROVE=true
-        const defaultApprove = process.env.HUMAN_IN_LOOP_AUTO_APPROVE === 'true';
-
-        const approved = await confirmWithTimeout({
-          message: `Approve this ${contentType}?`,
-          timeoutMs: waitMs,
-          defaultValue: defaultApprove,
-        });
-
-        if (approved) {
-          output.success(`${contentType} approved`);
-        } else {
-          output.warning(`${contentType} rejected`);
-        }
-
-        return JSON.stringify({ 
-          approved, 
-          message: approved ? 'Content approved for posting' : 'Content rejected by user' 
-        });
       }
 
       default:

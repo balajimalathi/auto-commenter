@@ -32,8 +32,7 @@ You have access to these tools. Use them to accomplish the task:
 - read_file: Read files (skill instructions, tracking, personalization, subreddit rules, memory)
 - write_file, append_file: Update tracking files, leads, memory
 - list_dir: Discover files
-- playwriter_execute: Execute Playwriter JavaScript in the browser. ALWAYS use the exact snippets from the "Playwriter Snippets" section below. Do NOT use accessibilitySnapshot. Use user-defined selectors (e.g. await page.click('comment-composer-host')). Scope: page, state, context.
-- request_approval: Request human approval before posting (required before any comment/post submission)`;
+- playwriter_execute: Execute Playwriter JavaScript in the browser. ALWAYS use the exact snippets from the "Playwriter Snippets" section below. Do NOT use accessibilitySnapshot. Use user-defined selectors (e.g. await page.click('comment-composer-host')). Scope: page, state, context.`;
 
   const playwriterSnippetsSection = playwriterSnippets
     ? `## Playwriter Snippets (use these exact patterns)
@@ -81,16 +80,15 @@ Your task:
    - Navigate to the post URL via playwriter_execute
    - Use playwriter_execute with Get Page Text snippet to read post content
    - Generate a helpful, natural comment following personalization guidelines
-   - IMPORTANT: Call request_approval with the proposed comment before posting
-   - If approved, use playwriter_execute: await page.click('comment-composer-host'), then type and submit
+   - Use playwriter_execute: await page.click('comment-composer-host'), then type and submit the comment
    - Update tracking file with the new comment
    - Update memory with the action
-   - After completing 3 comments for a subreddit (or if no suitable posts), move to the next subreddit
-4. Respect delays between comments (wait 2-5 minutes between comments)
+   - After completing 3 comments for a subreddit (or if no suitable posts), move to the next subreddit immediately
+4. Do NOT wait between subreddits; move to the next subreddit immediately after completing one. Complete all subreddits in one continuous run.
 5. CRITICAL: Continue through ALL subreddits until:
    - All subreddits have reached their quota (3 comments each), OR
    - There are no suitable posts left in any subreddit
-6. Report progress after each subreddit completion
+6. When reporting progress, list only completed subreddits and total (e.g. X/24 completed). Do not output "In progress" or "Waiting" sections.
 
 ${modeContext?.trackingSummary ? `Current tracking summary:\n${modeContext.trackingSummary}` : ''}`;
       break;
@@ -110,10 +108,9 @@ Workflow for each comment (use exact snippets from Playwriter Snippets section):
 6. Use playwriter_execute to open the post (navigate to URL)
 7. On the post page: use playwriter_execute with Get Page Text snippet to read content
 8. Write a helpful, natural comment that replies to that specific post (following personalization guidelines)
-9. Call request_approval with content_type="comment" and your proposed comment text
-10. If approved: use playwriter_execute: await page.click('comment-composer-host'), then use Type into Input snippet, then submit
-11. Update tracking and memory
-12. If the user's instruction requests multiple comments, repeat steps 2–11 until you have successfully posted that exact number of comments (or there are no suitable posts left).`;
+9. Use playwriter_execute: await page.click('comment-composer-host'), then use Type into Input snippet, then submit the comment
+10. Update tracking and memory
+11. If the user's instruction requests multiple comments, repeat steps 2–10 until you have successfully posted that exact number of comments (or there are no suitable posts left).`;
       break;
 
     case 'notifications':
@@ -127,8 +124,7 @@ Workflow (use exact snippets from Playwriter Snippets section):
 4. For each reply that warrants a response:
    - Read the context (original post, your comment, their reply)
    - Generate a thoughtful, helpful response
-   - IMPORTANT: Call request_approval with the proposed reply before posting
-   - If approved, use playwriter_execute with Click by Selector snippet, then Type into Input snippet
+   - Use playwriter_execute with Click by Selector snippet, then Type into Input snippet to post the reply
    - Update memory with the interaction
 5. Mark notifications as read if possible via playwriter_execute
 6. Report what notifications you handled`;
@@ -162,10 +158,8 @@ Workflow (use exact snippets from Playwriter Snippets section):
    - Subreddit rules and culture
    - Personalization guidelines
    - The user's intent
-4. IMPORTANT: Call request_approval with the full draft (title + content) before posting
-5. If approved:
-   - Use playwriter_execute with Navigation snippet to go to the subreddit
-   - Use playwriter_execute with Click by Selector and Type into Input snippets to fill and submit
+4. Use playwriter_execute with Navigation snippet to go to the subreddit
+5. Use playwriter_execute with Click by Selector and Type into Input snippets to fill and submit the post
 6. Update memory with the post details
 7. Report the post URL or any issues`;
       break;
@@ -190,14 +184,13 @@ ${productSection}
 ${projectStructure}
 
 ## Critical Rules
-1. ALWAYS call request_approval before posting any comment, reply, or post
-2. Follow the skill workflow and personalization guidelines exactly
-3. Update tracking after each action
-4. Log actions to memory
-5. Be autonomous - complete the full task without asking questions
-6. If something fails, log the error and try an alternative approach
-7. Report what you accomplished when done
-8. In commenter mode: ONLY write comments on existing posts. Open the post first, call request_approval, then use playwriter_execute to submit the comment.`;
+1. Follow the skill workflow and personalization guidelines exactly
+2. Update tracking after each action
+3. Log actions to memory
+4. Be autonomous - complete the full task without asking questions
+5. If something fails, log the error and try an alternative approach
+6. Report what you accomplished when done
+7. In commenter mode: ONLY write comments on existing posts. Open the post first, then use playwriter_execute to submit the comment.`;
 }
 
 /**

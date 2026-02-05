@@ -14,7 +14,7 @@
 | r/saas          | ~433K       | 3           |
 | r/microsaas     | ~124K       | 3           |
 | r/micro_saas    | ~28K        | 3           |
-| r/google_sheets | ~150K       | 3           |
+| r/googlesheets | ~150K       | 3           |
 | r/perplexity_ai | ~25K        | 3           |
 | r/grok          | ~50K        | 3           |
 | r/airtable      | ~16K        | 3           |
@@ -84,7 +84,7 @@
 
 ***
 
-### r/google_sheets
+### r/googlesheets
 
 | Item | Content |
 |------|---------|

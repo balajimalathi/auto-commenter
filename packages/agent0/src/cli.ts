@@ -1,3 +1,4 @@
+import { createInterface } from 'readline';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import { output } from './ui/output.js';
@@ -203,21 +204,49 @@ async function runInteractiveMode(): Promise<void> {
 
     await runWithSkillSelection(skill as string, mode as string, instruction);
 
-    const again = await p.select({
-      message: 'Run another task?',
-      options: [
-        { value: 'yes', label: 'Yes' },
-        { value: 'no', label: 'No, exit' },
-      ],
-    });
+    // Restore stdin so the next prompt can receive input (avoids freeze after long runs e.g. batch)
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(false);
+      process.stdin.resume();
+      process.stdin.removeAllListeners('data');
+    }
+    process.stdout.write('\n');
 
-    if (p.isCancel(again)) {
-      p.cancel('Operation cancelled.');
+    const runAgain = await promptRunAnotherTask();
+    if (runAgain === null) {
       process.exit(0);
     }
-
-    if (again === 'no') {
+    if (!runAgain) {
       break;
     }
   }
+}
+
+/**
+ * Ask "Run another task? (y/n):" using readline so it works after long runs (batch).
+ * Returns true to continue, false to exit, null if cancelled (Ctrl+C).
+ */
+function promptRunAnotherTask(): Promise<boolean | null> {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+    const onSigInt = () => {
+      rl.close();
+      process.removeListener('SIGINT', onSigInt);
+      process.stdout.write('\n');
+      resolve(null);
+    };
+    process.on('SIGINT', onSigInt);
+
+    rl.question('Run another task? (y/n): ', (answer) => {
+      process.removeListener('SIGINT', onSigInt);
+      rl.close();
+      const trimmed = answer.trim().toLowerCase();
+      if (trimmed === 'y' || trimmed === 'yes') {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+  });
 }

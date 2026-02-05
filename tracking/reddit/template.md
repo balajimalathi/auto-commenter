@@ -17,7 +17,7 @@
 | r/saas | 0 | 3 | - |
 | r/microsaas | 0 | 3 | - |
 | r/micro_saas | 0 | 3 | - |
-| r/google_sheets | 0 | 3 | - |
+| r/googlesheets | 0 | 3 | - |
 | r/perplexity_ai | 0 | 3 | - |
 | r/grok | 0 | 3 | - |
 | r/airtable | 0 | 3 | - |

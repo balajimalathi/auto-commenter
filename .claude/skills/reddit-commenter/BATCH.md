@@ -49,7 +49,7 @@ Start batch mode with these commands:
           - Completed 3 → to [4]
           - No suitable posts → to [4]
     ↓
-[4] Move to next subreddit (wait 5-15 minutes)
+[4] Move to next subreddit immediately
     ↓
 [5] Check overall termination condition
     ↓
@@ -74,8 +74,8 @@ Start batch mode with these commands:
 | Situation | Wait Time |
 |-----------|-----------|
 | Between comments in same subreddit | None |
-| Between subreddit transitions | 5-15 minutes |
-| Can't find suitable post | Move to next subreddit (wait 5-15 minutes) |
+| Between subreddit transitions | None |
+| Can't find suitable post | Move to next subreddit immediately |
 
 ### Execution Example
 
@@ -85,14 +85,14 @@ Start r/WebDev
   → Comment 2/3 written
   → Comment 3/3 written ✓
   
-r/WebDev complete → Wait 12 min → Move to r/ClaudeAI
+r/WebDev complete → Move to r/ClaudeAI
 
 Start r/ClaudeAI
-  → Comment 1/3 written → Wait 6 min
-  → Comment 2/3 written → Wait 8 min
+  → Comment 1/3 written
+  → Comment 2/3 written
   → Comment 3/3 written ✓
   
-r/ClaudeAI complete → Wait 10 min → Move to r/Cursor
+r/ClaudeAI complete → Move to r/Cursor
 ```
 
 ---
@@ -116,18 +116,6 @@ Batch execution terminates when one of the following is met:
 Completed subreddits:
 ✓ r/WebDev: 3/3
 ✓ r/ClaudeAI: 3/3
-
-In progress:
-→ r/Cursor: 0/3 (current)
-
-Waiting:
-- r/grok: 0/3
-- r/airtable: 0/3
-- r/sideproject: 0/3
-- r/perplexity_ai: 0/3
-- r/micro_saas: 0/3
-
-Next: Move to r/grok after r/Cursor quota complete
 ---
 ```
 
@@ -178,7 +166,7 @@ r/grok skipped - No suitable posts
 | r/perplexity_ai | 2/3 | No suitable posts |
 | r/airtable | 2/3 | No suitable posts |
 | r/micro_saas | 2/3 | No suitable posts |
-| r/google_sheets | 2/3 | No suitable posts |
+| r/googlesheets | 2/3 | No suitable posts |
 
 ### Potential Customers Discovered
 - 2 (updated in leads/reddit.md)
