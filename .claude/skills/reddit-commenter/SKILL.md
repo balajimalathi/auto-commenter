@@ -10,24 +10,26 @@ license: MIT
 
 ---
 
-## Required Tool: Playwright MCP
+## Required Tools: Agent0 + Playwriter
 
-This skill uses **Playwright MCP** to interact with Reddit.
+This skill runs inside **Agent0** and uses:
 
-### Main MCP Tools
-| MCP Tool | Purpose |
-|----------|---------|
-| `browser_navigate` | Navigate to Reddit pages |
-| `browser_snapshot` | Capture page structure (accessibility tree) |
-| `browser_click` | Click elements (comment box, buttons, etc.) |
-| `browser_type` | Input text (comment content) |
-| `browser_wait_for` | Wait for page loading |
+- Agent0 file tools (`read_file`, `write_file`, `append_file`, `list_dir`) for tracking, personalization, and leads
+- `playwriter_execute` to run Playwright code in the browser using pre-defined snippets
+- `request_approval` to get human approval before posting any comment
 
-### ⚠️ Important Notes When Using Playwright MCP
-- **Minimize tokens**: When calling MCP, don't pass entire conversation context—only concisely summarize the essential information needed for that action
-- **Direct navigation**: Navigate directly to URLs with `browser_navigate` rather than clicking elements (prevents click errors, saves tokens)
-- **Concise instructions**: Pass only minimal instructions like "Navigate to [URL]", "Click [element]", "Type: [text]"
-- **⚠️ No screenshots**: Do NOT use `browser_take_screenshot`. Always use only `browser_snapshot` for page verification (accessibility tree is sufficient and doesn't save files)
+### Browser Automation (Playwriter)
+
+Browser interaction is handled through `playwriter_execute` and the **Playwriter Snippets** resource, not direct MCP tools. The concrete selectors and code live in the snippets; this skill file describes the high-level workflow:
+
+- **Navigation**: Use the Navigation snippet (via `playwriter_execute`) to go directly to URLs like `https://www.reddit.com/r/{subreddit}/new/` or specific post URLs
+- **Reading content**: Use text-extraction snippets to read post content and comments
+- **Commenting**: Use snippets to focus the comment composer, type the reviewed comment, and submit it
+
+### ⚠️ Important Notes When Using Playwriter
+- **Minimize tokens**: When calling `playwriter_execute`, don't pass the entire conversation context—only concisely summarize the essential information needed for that action
+- **Direct navigation**: Prefer direct URL navigation using the Navigation snippet rather than clicking through multiple elements (prevents click errors, saves tokens)
+- **Concise instructions**: Keep snippet usage small and focused, such as \"navigate to [URL]\", \"click [element]\", \"type: [text]\"
 
 ---
 
@@ -59,13 +61,13 @@ This skill uses **Playwright MCP** to interact with Reddit.
 ### Step 2: Access Reddit and Explore Posts
 
 ```
-1. Access Reddit with Playwright MCP
-   → browser_navigate("https://www.reddit.com/r/{selected_subreddit}/new/")
+1. Access Reddit using Playwriter snippets
+   → Navigate directly to "https://www.reddit.com/r/{selected_subreddit}/new/"
    or
-   → browser_navigate("https://www.reddit.com/r/{selected_subreddit}/rising/")
+   → Navigate directly to "https://www.reddit.com/r/{selected_subreddit}/rising/"
 
-2. Page snapshot
-   → browser_snapshot()
+2. Capture the page structure/content
+   → Use Playwriter snippets to read the list of posts and their links
 
 3. Criteria for selecting posts to comment on:
    • Posts where you can share insights or provide feedback
@@ -89,9 +91,9 @@ This skill uses **Playwright MCP** to interact with Reddit.
 ⚠️ CRITICAL: Must perform this step before writing comment
 
 0. Navigate directly to post
-   → browser_navigate(post URL secured in Step 2)
+   → Use Navigation snippet to open the post URL secured in Step 2
    → Navigate directly to URL, don't click on post (prevents click errors)
-   → browser_snapshot()
+   → Use Playwriter snippets to read the post and comments
 
 1. Read post content accurately:
    - Understand what OP is actually asking
@@ -119,8 +121,8 @@ This skill uses **Playwright MCP** to interact with Reddit.
    - Is feedback requested on UX, design, performance that requires actual verification?
 
    → If YES:
-     • Visit actual site with browser_navigate(provided link)
-     • Check UI/UX with browser_snapshot()
+     • Visit actual site using the Navigation snippet (direct URL)
+     • Check UI/UX using Playwriter text/snapshot snippets
      • Write feedback based ONLY on what you actually saw
      • Absolutely NO speculative feedback on things you didn't see
 
@@ -165,14 +167,13 @@ This skill uses **Playwright MCP** to interact with Reddit.
 
 ```
 1. Click comment input box
-   → Check comment input element after browser_snapshot()
-   → browser_click(comment box ref)
+   → Use Playwriter snippets to focus the comment composer
 
 2. Input comment content
-   → browser_type(reviewed comment)
+   → Use Playwriter snippets to type the reviewed comment
 
 3. Click post button
-   → browser_click(post button ref)
+   → Use Playwriter snippets to submit the comment
 
 4. Secure comment URL
    → Copy comment permalink after posting
@@ -237,9 +238,9 @@ Update tracking/reddit/[today's-date].md file:
 4. **Spam Prevention**: Absolutely NO copy-pasting same content
 5. **Review Required**: Rewrite if any checklist item violated
 6. **⚠️ Step 3 Required**: NEVER write comment without analyzing post content. Judging only by keywords can cause serious errors
-7. **⚠️ Minimize Playwright MCP tokens**:
-   - Don't pass entire context when calling Playwright MCP
-   - Concisely summarize only essential information needed for each MCP call
-   - E.g.: Only minimal instructions like "Navigate to [URL]", "Click comment box", "Type: [text]"
+7. **⚠️ Minimize Playwriter call tokens**:
+   - Don't pass entire context when calling `playwriter_execute`
+   - Concisely summarize only essential information needed for each call
+   - E.g.: Only minimal instructions/snippets like "navigate to [URL]", "click comment box", "type [text]"
    - Prevent errors from excessive input tokens
-8. **⚠️ Post Navigation**: Use browser_navigate directly with URL instead of clicking post (prevents click errors)
+8. **⚠️ Post Navigation**: Use direct URL navigation (Navigation snippet via `playwriter_execute`) instead of clicking the post (prevents click errors)

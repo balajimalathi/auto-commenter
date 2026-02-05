@@ -1,4 +1,4 @@
-# Personalization Guide Template
+# Personalization Guide
 
 > This file should contain YOUR actual Reddit commenting style, learned from 8-10 of your real comments.
 > See README.md for instructions on how to generate this file using AI.
@@ -57,9 +57,9 @@ For daily activity (e.g., 24 comments):
 ### Patterns to Avoid
 
 Repeating this structure makes it look AI-generated:
-1. [experience/empathy] → [analysis] → [solution] → [question]
-2. [experience/empathy] → [analysis] → [solution] → [question]
-3. [experience/empathy] → [analysis] → [solution] → [question]
+1. I've been in this exact situation before where things looked fine on the surface but felt off underneath → usually that's a sign the process is optimized for speed, not clarity → breaking the task into smaller visible checkpoints made a big difference → have you tried splitting it into phases instead of handling it end-to-end?
+2. I remember feeling overwhelmed when too many tools were involved at once → most of the confusion actually came from unclear ownership, not complexity → assigning a single source of truth for decisions reduced the noise → who currently owns the final say when something changes?
+3. I've noticed teams often rush to automate before understanding the real bottleneck → the issue is rarely effort, it's usually misaligned expectations → documenting the desired outcome before choosing the tooling helped us avoid rework → what outcome are you really optimizing for here?
 
 ### Structure Mix Strategy
 
@@ -177,6 +177,7 @@ Glad to meet someone who is very interested in this topic. If you are interested
 - "Hope this helps!", "Here's what you need to know:"
 - "pain points", "leverage", "utilize", "facilitate"
 - "In conclusion,", "That being said,"
+- "-", "—"
 
 ## Expressions to Use
 

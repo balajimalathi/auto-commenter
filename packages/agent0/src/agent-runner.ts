@@ -109,7 +109,7 @@ Workflow for each comment (use exact snippets from Playwriter Snippets section):
 9. Call request_approval with content_type="comment" and your proposed comment text
 10. If approved: use playwriter_execute: await page.click('comment-composer-host'), then use Type into Input snippet, then submit
 11. Update tracking and memory
-12. If more comments needed: go back to subreddit, scroll, pick another post, repeat`;
+12. If the user's instruction requests multiple comments, repeat steps 2–11 until you have successfully posted that exact number of comments (or there are no suitable posts left).`;
       break;
 
     case 'notifications':
@@ -240,11 +240,12 @@ export async function runWithToolCalling(
     await connectBrowser();
 
     // Mode-appropriate iteration limits:
-    // commenter/notifications: focused tasks, ~4-6 iterations per comment
+    // commenter: multi-comment runs, needs more headroom (~8-10 iterations per comment)
+    // notifications: focused tasks
     // batch: needs more headroom for multiple subreddits
     // trending/post: moderate complexity
     const maxIterationsMap: Record<AgentMode, number> = {
-      commenter: 10,
+      commenter: 30,
       notifications: 10,
       trending: 8,
       post: 10,

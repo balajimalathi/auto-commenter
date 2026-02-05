@@ -164,41 +164,60 @@ async function runInteractiveMode(): Promise<void> {
     process.exit(1);
   }
 
-  // Select skill
-  const skill = await p.select({
-    message: 'Select a skill:',
-    options: skills.map(s => ({ value: s, label: s })),
-  });
+  while (true) {
+    // Select skill
+    const skill = await p.select({
+      message: 'Select a skill:',
+      options: skills.map(s => ({ value: s, label: s })),
+    });
 
-  if (p.isCancel(skill)) {
-    p.cancel('Operation cancelled.');
-    process.exit(0);
+    if (p.isCancel(skill)) {
+      p.cancel('Operation cancelled.');
+      process.exit(0);
+    }
+
+    // Select mode
+    const mode = await p.select({
+      message: 'Select a mode:',
+      options: [
+        { value: 'batch', label: 'Batch Mode', hint: 'Fill daily quota' },
+        { value: 'commenter', label: 'Comment', hint: 'Post specific comments' },
+        { value: 'notifications', label: 'Notifications', hint: 'Check and respond' },
+        { value: 'trending', label: 'Trending', hint: 'Find trending posts' },
+        { value: 'post', label: 'Post', hint: 'Write and publish content' },
+      ],
+    });
+
+    if (p.isCancel(mode)) {
+      p.cancel('Operation cancelled.');
+      process.exit(0);
+    }
+
+    let instruction: string | undefined;
+
+    if (mode === 'commenter') {
+      instruction = await promptForInstruction('comment');
+    } else if (mode === 'post') {
+      instruction = await promptForInstruction('post');
+    }
+
+    await runWithSkillSelection(skill as string, mode as string, instruction);
+
+    const again = await p.select({
+      message: 'Run another task?',
+      options: [
+        { value: 'yes', label: 'Yes' },
+        { value: 'no', label: 'No, exit' },
+      ],
+    });
+
+    if (p.isCancel(again)) {
+      p.cancel('Operation cancelled.');
+      process.exit(0);
+    }
+
+    if (again === 'no') {
+      break;
+    }
   }
-
-  // Select mode
-  const mode = await p.select({
-    message: 'Select a mode:',
-    options: [
-      { value: 'batch', label: 'Batch Mode', hint: 'Fill daily quota' },
-      { value: 'commenter', label: 'Comment', hint: 'Post specific comments' },
-      { value: 'notifications', label: 'Notifications', hint: 'Check and respond' },
-      { value: 'trending', label: 'Trending', hint: 'Find trending posts' },
-      { value: 'post', label: 'Post', hint: 'Write and publish content' },
-    ],
-  });
-
-  if (p.isCancel(mode)) {
-    p.cancel('Operation cancelled.');
-    process.exit(0);
-  }
-
-  let instruction: string | undefined;
-
-  if (mode === 'commenter') {
-    instruction = await promptForInstruction('comment');
-  } else if (mode === 'post') {
-    instruction = await promptForInstruction('post');
-  }
-
-  await runWithSkillSelection(skill as string, mode as string, instruction);
 }
