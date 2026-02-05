@@ -10,7 +10,8 @@
       "Bash(npm uninstall:*)",
       "Bash(npm install:*)",
       "Bash(npm cache clean:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(find \"f:\\\\auto-commenter\\\\node_modules\\\\.pnpm\\\\playwriter@0.0.56_@cfworker_b316c6542336cd2262a1b0cf6ec4b702\\\\node_modules\\\\playwriter\"\" -type f -name \"*.ts\" -o -name \"*.js \")"
     ]
   }
 }

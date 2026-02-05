@@ -11,7 +11,7 @@
     "extension:build": "pnpm --filter mcp-extension run build",
     "playwriter:build": "pnpm --filter playwriter run build",
     "playwriter:mcp": "pnpm --filter playwriter run mcp",
-    "playwriter:relay": "pnpm --filter playwriter exec vite-node src/start-relay-server.ts",
+    "playwriter:relay": "pnpm --filter playwriter run relay",
     "relay": "pnpm playwriter:relay",
     "build": "pnpm agent0:build && pnpm extension:build",
     "install:all": "pnpm install"

@@ -363,25 +363,15 @@ import { existsSync as existsSync3 } from "fs";
 // src/playwriter-client.ts
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import path from "path";
-import { fileURLToPath as fileURLToPath2 } from "url";
-var __filename = fileURLToPath2(import.meta.url);
-var __dirname = path.dirname(__filename);
-function getMonorepoRoot() {
-  const agent0Root = path.resolve(__dirname, "..");
-  return path.resolve(agent0Root, "..");
-}
 var client = null;
 var transport = null;
 async function connect() {
   if (client) {
     return;
   }
-  const monorepoRoot = getMonorepoRoot();
   transport = new StdioClientTransport({
-    command: "pnpm",
-    args: ["--filter", "playwriter", "run", "mcp"],
-    cwd: monorepoRoot,
+    command: "playwriter",
+    args: ["mcp"],
     stderr: "pipe",
     env: { ...process.env }
   });
@@ -409,10 +399,11 @@ async function callExecute(code, timeout = 3e4) {
   if (!client) {
     throw new Error("Playwriter MCP not connected. Call connect() first.");
   }
-  const result = await client.callTool({
-    name: "execute",
-    arguments: { code, timeout }
-  });
+  const result = await client.callTool(
+    { name: "execute", arguments: { code, timeout } },
+    void 0,
+    { timeout: timeout + 15e3 }
+  );
   const content = result.content;
   if (result.isError) {
     const text4 = extractText(content);
@@ -559,49 +550,103 @@ async function submitRedditComment(commentText) {
   const escaped = escapeForCode(commentText);
   const code = `
 try {
-  const shredditComposer = page.locator('shreddit-composer').first();
-  let composerFound = false;
-  try { await shredditComposer.waitFor({ state: 'visible', timeout: 5000 }); composerFound = true; } catch {}
-  if (!composerFound) {
-    await page.evaluate(() => window.scrollBy(0, 500));
-    await page.waitForTimeout(1000);
-    try { await shredditComposer.waitFor({ state: 'visible', timeout: 3000 }); composerFound = true; } catch {}
+  // Playwright locators don't reliably find elements inside Reddit's custom element tree
+  // through the Playwriter relay. Use page.evaluate() with direct DOM APIs instead,
+  // including recursive shadow DOM traversal.
+
+  // Helper: find element by selector, searching through shadow roots if needed.
+  // Defined once on window so all evaluate calls can use it.
+  await page.evaluate(() => {
+    window.__find = (selector, root) => {
+      root = root || document;
+      let el = root.querySelector(selector);
+      if (el) return el;
+      const children = root.querySelectorAll('*');
+      for (let i = 0; i < children.length; i++) {
+        if (children[i].shadowRoot) {
+          el = window.__find(selector, children[i].shadowRoot);
+          if (el) return el;
+        }
+      }
+      return null;
+    };
+  });
+
+  // Step 1: Click "Join the conversation" trigger to open the composer.
+  let triggerClicked = await page.evaluate(() => {
+    const trigger = window.__find('[data-testid="trigger-button"]')
+      || window.__find('faceplate-textarea-input[placeholder="Join the conversation"]');
+    if (!trigger) return false;
+    trigger.scrollIntoView({ block: 'center' });
+    trigger.click();
+    return true;
+  });
+
+  if (!triggerClicked) {
+    // Scroll to bottom and retry \u2014 composer might be below the fold
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(1500);
+    triggerClicked = await page.evaluate(() => {
+      const trigger = window.__find('[data-testid="trigger-button"]')
+        || window.__find('faceplate-textarea-input[placeholder="Join the conversation"]');
+      if (!trigger) return false;
+      trigger.scrollIntoView({ block: 'center' });
+      trigger.click();
+      return true;
+    });
   }
-  if (!composerFound) return JSON.stringify({ success: false, error: 'Could not find shreddit-composer. Make sure you are logged into Reddit and on a post page.' });
-  await shredditComposer.scrollIntoViewIfNeeded();
-  await shredditComposer.click();
+
+  if (!triggerClicked) {
+    const diag = await page.evaluate(() => ({
+      url: location.href,
+      hasShredditComposer: !!window.__find('shreddit-composer'),
+      hasAsyncLoader: !!window.__find('shreddit-async-loader'),
+      hasFaceplateTextarea: !!window.__find('faceplate-textarea-input'),
+      testIds: [...document.querySelectorAll('[data-testid]')].map(e => e.getAttribute('data-testid')).slice(0, 15),
+    }));
+    return JSON.stringify({ success: false, error: 'Trigger not found. Diag: ' + JSON.stringify(diag) });
+  }
+
   await page.waitForTimeout(1500);
-  let editor = page.locator('shreddit-composer div[contenteditable="true"]').first();
-  let editorFound = false;
-  try { await editor.waitFor({ state: 'visible', timeout: 5000 }); editorFound = true; } catch {}
-  if (!editorFound) {
-    editor = page.locator('div[contenteditable="true"][role="textbox"]').first();
-    try { await editor.waitFor({ state: 'visible', timeout: 3000 }); editorFound = true; } catch {}
+
+  // Step 2: Find the editor, focus it, and type the comment.
+  const editorReady = await page.evaluate(() => {
+    const editor = window.__find('div[contenteditable="true"]');
+    if (!editor) return false;
+    editor.scrollIntoView({ block: 'center' });
+    editor.focus();
+    editor.click();
+    return true;
+  });
+
+  if (!editorReady) {
+    return JSON.stringify({ success: false, error: 'Editor not found after clicking trigger.' });
   }
-  if (!editorFound) {
-    editor = page.locator('div[contenteditable="true"]').first();
-    try { await editor.waitFor({ state: 'visible', timeout: 3000 }); editorFound = true; } catch {}
-  }
-  if (!editorFound) return JSON.stringify({ success: false, error: 'Comment editor did not activate.' });
-  await editor.click();
+
   await page.waitForTimeout(300);
   await page.keyboard.type(${escaped}, { delay: 20 });
   await page.waitForTimeout(500);
-  let submitBtn = page.locator('shreddit-composer button[type="submit"][slot="submit-button"]').first();
-  let btnFound = false;
-  try { await submitBtn.waitFor({ state: 'visible', timeout: 3000 }); btnFound = true; } catch {}
-  if (!btnFound) { submitBtn = page.locator('button[slot="submit-button"]').first(); try { await submitBtn.waitFor({ state: 'visible', timeout: 2000 }); btnFound = true; } catch {} }
-  if (!btnFound) { submitBtn = page.locator('shreddit-composer button').filter({ hasText: /^Comment$/i }).first(); try { await submitBtn.waitFor({ state: 'visible', timeout: 2000 }); btnFound = true; } catch {} }
-  if (!btnFound) { submitBtn = page.getByRole('button', { name: /^Comment$/i }).first(); try { await submitBtn.waitFor({ state: 'visible', timeout: 2000 }); btnFound = true; } catch {} }
-  if (!btnFound) return JSON.stringify({ success: false, error: 'Could not find Comment submit button.' });
-  await submitBtn.click();
+
+  // Step 3: Click the "Comment" submit button.
+  const submitted = await page.evaluate(() => {
+    const btn = window.__find('button[slot="submit-button"]')
+      || window.__find('button[type="submit"]');
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+
+  if (!submitted) {
+    return JSON.stringify({ success: false, error: 'Submit button not found.' });
+  }
+
   await page.waitForTimeout(2000);
   return JSON.stringify({ success: true });
 } catch (e) {
   return JSON.stringify({ success: false, error: e.message || String(e) });
 }
 `;
-  const result = await callExecute(code, 45e3);
+  const result = await callExecute(code, 3e4);
   if (result.isError) {
     return { success: false, error: result.text };
   }
@@ -927,45 +972,45 @@ async function executeTool(name, args, ctx) {
   try {
     switch (name) {
       case "read_file": {
-        const path2 = args.path;
-        const fullPath = join3(root, path2);
+        const path = args.path;
+        const fullPath = join3(root, path);
         if (!fullPath.startsWith(root)) {
           return JSON.stringify({ error: "Path outside project root" });
         }
         if (!existsSync3(fullPath)) {
-          return JSON.stringify({ error: `File not found: ${path2}` });
+          return JSON.stringify({ error: `File not found: ${path}` });
         }
         const content = await readFile3(fullPath, "utf-8");
         return content;
       }
       case "write_file": {
-        const path2 = args.path;
+        const path = args.path;
         const content = args.content;
-        const fullPath = join3(root, path2);
+        const fullPath = join3(root, path);
         if (!fullPath.startsWith(root)) {
           return JSON.stringify({ error: "Path outside project root" });
         }
         await writeFile2(fullPath, content, "utf-8");
-        return JSON.stringify({ success: true, path: path2 });
+        return JSON.stringify({ success: true, path });
       }
       case "append_file": {
-        const path2 = args.path;
+        const path = args.path;
         const content = args.content;
-        const fullPath = join3(root, path2);
+        const fullPath = join3(root, path);
         if (!fullPath.startsWith(root)) {
           return JSON.stringify({ error: "Path outside project root" });
         }
         await appendFile2(fullPath, content, "utf-8");
-        return JSON.stringify({ success: true, path: path2 });
+        return JSON.stringify({ success: true, path });
       }
       case "list_dir": {
-        const path2 = args.path;
-        const fullPath = join3(root, path2);
+        const path = args.path;
+        const fullPath = join3(root, path);
         if (!fullPath.startsWith(root)) {
           return JSON.stringify({ error: "Path outside project root" });
         }
         if (!existsSync3(fullPath)) {
-          return JSON.stringify({ error: `Directory not found: ${path2}` });
+          return JSON.stringify({ error: `Directory not found: ${path}` });
         }
         const entries = await readdir2(fullPath, { withFileTypes: true });
         const result = entries.map((e) => ({
@@ -1773,7 +1818,7 @@ async function runInteractiveMode() {
 
 // src/index.ts
 var cwd = process.cwd();
-var envPaths = [resolve(cwd, ".env"), resolve(cwd, "..", ".env")];
+var envPaths = [resolve(cwd, ".env"), resolve(cwd, "..", "..", ".env")];
 for (const envPath of envPaths) {
   if (existsSync4(envPath)) {
     config({ path: envPath, override: true });

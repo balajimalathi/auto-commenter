@@ -1,21 +1,11 @@
 /**
  * MCP client that connects to playwriter MCP server and forwards execute/reset calls.
+ * Uses the playwriter npm package installed on the host (global or project dependency).
  * Playwriter controls the browser via the extension relay (port 19988).
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-/** Monorepo root (parent of packages/) */
-function getMonorepoRoot(): string {
-  const agent0Root = path.resolve(__dirname, '..'); // packages/agent0
-  return path.resolve(agent0Root, '..', '..'); // repo root
-}
 
 let client: Client | null = null;
 let transport: StdioClientTransport | null = null;
@@ -26,19 +16,17 @@ export interface ExecuteResult {
 }
 
 /**
- * Connect to playwriter MCP server. Spawns the server as subprocess and connects via stdio.
- * Playwriter MCP will ensure the relay is running and wait for extension connection.
+ * Connect to playwriter MCP server. Spawns the host-installed playwriter as subprocess.
+ * Uses `playwriter mcp` (expects playwriter in PATH from global/project install).
  */
 export async function connect(): Promise<void> {
   if (client) {
     return;
   }
 
-  const monorepoRoot = getMonorepoRoot();
   transport = new StdioClientTransport({
-    command: 'pnpm',
-    args: ['--filter', 'playwriter', 'run', 'mcp'],
-    cwd: monorepoRoot,
+    command: 'playwriter',
+    args: ['mcp'],
     stderr: 'pipe',
     env: { ...process.env } as Record<string, string>,
   });
@@ -83,10 +71,13 @@ export async function callExecute(code: string, timeout = 30000): Promise<Execut
     throw new Error('Playwriter MCP not connected. Call connect() first.');
   }
 
-  const result = await client.callTool({
-    name: 'execute',
-    arguments: { code, timeout },
-  });
+  // Pass timeout both as a tool argument (for Playwriter's VM) and as an MCP
+  // request option (to prevent the MCP SDK's 60s default from killing long calls).
+  const result = await client.callTool(
+    { name: 'execute', arguments: { code, timeout } },
+    undefined,
+    { timeout: timeout + 15000 },
+  );
 
   const content = (result as { content?: Array<{ type: string; text?: string }> }).content;
   if (result.isError) {

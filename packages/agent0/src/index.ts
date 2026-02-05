@@ -7,7 +7,7 @@ import { createCLI } from './cli.js';
 
 // Load .env - override host env so project .env takes precedence
 const cwd = process.cwd();
-const envPaths = [resolve(cwd, '.env'), resolve(cwd, '..', '.env')];
+const envPaths = [resolve(cwd, '.env'), resolve(cwd, '..', '..', '.env')];
 for (const envPath of envPaths) {
   if (existsSync(envPath)) {
     config({ path: envPath, override: true });
