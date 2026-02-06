@@ -18,74 +18,89 @@ await new Promise(r => setTimeout(r, 3000));
 // Use this after posting a reply on a /status/ page to continue with next tweet
 await page.goto('https://x.com/home');
 await new Promise(r => setTimeout(r, 3000));
-// Note: The previously selected tab and "Recency" filter should still be active
-// If not, re-click the tab and re-apply the "Recency" filter before extracting next tweets
+// Note: The previously selected tab and filter (if applicable) should still be active
+// If not, re-click the tab and re-apply the filter:
+//   - Following: Select "Recent"
+//   - Build in Public: Select "Recency"
+//   - Fail in Public: Select "Recency"
+//   - For you / Smol: No filter needed
 ```
 
 ## Home Timeline Tabs (For you / Following / Build in Public / Fail in Public / Smol)
 
-**CRITICAL:** Always filter to "Recency" after clicking any tab to ensure you get the most recent tweets.
+**CRITICAL:** Filter options vary by tab. Some tabs don't have a filter menu.
 
-### Standard Pattern: Click Tab + Filter to Recency
+### Filter Options by Tab
+
+- **For you**: No filter menu (just click tab)
+- **Following**: Filter to "Recent"
+- **Build in Public**: Filter to "Recency"
+- **Fail in Public**: Filter to "Recency"
+- **Smol**: No filter menu (just click tab)
+
+### Tabs WITH Filter Menu
+
+**Flow:** Click the tab → wait 3000ms → click the dropdown (SVG on the tab) to open the filter menu → click the menuitem (e.g. "Recent" or "Recency"). The menu option is a `role="menuitem"` with the label text inside (e.g. `<span>Recent</span>`).
 
 ```javascript
-// Assumes you are already on https://x.com/home
-// This pattern applies to ALL tabs - always filter to "Recency" after clicking
-
-// 1) Click the tab
-await page.getByRole('tab', { name: 'Tab Name Here' }).click();
+// Pattern for tabs WITH filter menu
+// 1) Click the tab, then wait 3000ms for the tab to load
+await page.getByRole('tab', { name: 'Tab Name' }).click();
 await new Promise(r => setTimeout(r, 3000));
 
-// 2) Open the tab's filter menu by clicking the SVG icon
-await page.getByRole('tab', { name: 'Tab Name Here' }).locator('svg').click();
-await new Promise(r => setTimeout(r, 3000));
+// 2) Open the filter dropdown by clicking the SVG icon on the tab
+await page.getByRole('tab', { name: 'Tab Name' }).locator('svg').click();
+await new Promise(r => setTimeout(r, 1000));
 
-// 3) Select "Recency" from the menu
-await page.getByRole('menuitem', { name: 'Recency' }).click();
+// 3) Select the filter option: menuitem with name "Recent" (Following) or "Recency" (Build in Public, Fail in Public)
+await page.getByRole('menuitem', { name: 'Filter Option' }).click();
+await new Promise(r => setTimeout(r, 3000));
+```
+
+### Tabs WITHOUT Filter Menu (For you, Smol)
+
+These tabs do NOT have an SVG filter menu. Just click the tab and proceed:
+
+```javascript
+// Pattern for tabs WITHOUT filter menu (For you, Smol)
+// Just click the tab - no filter menu available
+await page.getByRole('tab', { name: 'Tab Name' }).click();
 await new Promise(r => setTimeout(r, 3000));
 ```
 
 ### Complete Examples for Each Tab
 
 ```javascript
-// For you tab
+// For you tab - NO filter menu, just click
 await page.getByRole('tab', { name: 'For you' }).click();
 await new Promise(r => setTimeout(r, 3000));
-await page.getByRole('tab', { name: 'For you' }).locator('svg').click();
-await new Promise(r => setTimeout(r, 3000));
-await page.getByRole('menuitem', { name: 'Recency' }).click();
-await new Promise(r => setTimeout(r, 3000));
 
-// Following tab
+// Following tab - Click tab, wait 3000ms, then open dropdown and select menuitem "Recent"
 await page.getByRole('tab', { name: 'Following' }).click();
 await new Promise(r => setTimeout(r, 3000));
 await page.getByRole('tab', { name: 'Following' }).locator('svg').click();
-await new Promise(r => setTimeout(r, 3000));
-await page.getByRole('menuitem', { name: 'Recency' }).click();
+await new Promise(r => setTimeout(r, 1000));
+await page.getByRole('menuitem', { name: 'Recent' }).click();
 await new Promise(r => setTimeout(r, 3000));
 
-// Build in Public tab
+// Build in Public tab - Click tab, wait 3000ms, then open dropdown and select menuitem "Recency"
 await page.getByRole('tab', { name: 'Build in Public' }).click();
 await new Promise(r => setTimeout(r, 3000));
 await page.getByRole('tab', { name: 'Build in Public' }).locator('svg').click();
-await new Promise(r => setTimeout(r, 3000));
+await new Promise(r => setTimeout(r, 1000));
 await page.getByRole('menuitem', { name: 'Recency' }).click();
 await new Promise(r => setTimeout(r, 3000));
 
-// Fail in Public tab
+// Fail in Public tab - Click tab, wait 3000ms, then open dropdown and select menuitem "Recency"
 await page.getByRole('tab', { name: 'Fail in Public' }).click();
 await new Promise(r => setTimeout(r, 3000));
 await page.getByRole('tab', { name: 'Fail in Public' }).locator('svg').click();
-await new Promise(r => setTimeout(r, 3000));
+await new Promise(r => setTimeout(r, 1000));
 await page.getByRole('menuitem', { name: 'Recency' }).click();
 await new Promise(r => setTimeout(r, 3000));
 
-// Smol tab
+// Smol tab - NO filter menu, just click
 await page.getByRole('tab', { name: 'Smol' }).click();
-await new Promise(r => setTimeout(r, 3000));
-await page.getByRole('tab', { name: 'Smol' }).locator('svg').click();
-await new Promise(r => setTimeout(r, 3000));
-await page.getByRole('menuitem', { name: 'Recency' }).click();
 await new Promise(r => setTimeout(r, 3000));
 ```
 
@@ -104,13 +119,13 @@ await page.evaluate((px) => window.scrollBy(0, px), 500);
 return page.url();
 ```
 
-## Extract Tweets (Top 10)
+## Extract Tweets (Top 25)
 
-**CRITICAL:** Always extract only the top 10 tweets after filtering to "Recency". This ensures you're responding to the most recent content.
+**CRITICAL:** Always extract only the top 25 tweets after filtering to "Recency". This ensures you're responding to the most recent content and have enough candidates to reach the 25-per-tab goal.
 
 ```javascript
-// Extract the top 10 tweets from the current timeline
-// Use this AFTER clicking a tab and filtering to "Recent"
+// Extract the top 25 tweets from the current timeline
+// Use this AFTER clicking a tab and filtering to "Recent" or "Recency"
 const tweets = await page.evaluate(() => {
   const result = [];
   document.querySelectorAll('article[data-testid="tweet"]').forEach((tweet) => {
@@ -127,8 +142,8 @@ const tweets = await page.evaluate(() => {
       });
     }
   });
-  // Always limit to top 10 tweets
-  return JSON.stringify(result.slice(0, 10));
+  // Always limit to top 25 tweets
+  return JSON.stringify(result.slice(0, 25));
 });
 return tweets;
 ```

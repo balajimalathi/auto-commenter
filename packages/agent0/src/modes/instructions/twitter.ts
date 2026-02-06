@@ -13,8 +13,14 @@ Your task:
 3. For each target with remaining quota:
    - Use playwriter_execute with Navigation snippet: await page.goto('https://x.com/home', ...)
    - Use playwriter_execute with timeline-tab snippets to click the selected tab (For you, Following, Build in Public, Fail in Public, or Smol)
-   - ⚠️ CRITICAL: ALWAYS filter to "Recency" after clicking the tab: click the tab's SVG icon, then select "Recency" from the menu
-   - Use playwriter_execute with Extract Tweets snippet to get the top 10 tweets from the filtered timeline
+   - ⚠️ CRITICAL: Apply filter based on tab type:
+     * For you: Just click tab (no filter)
+     * Following: Click tab → click SVG icon → select "Recent"
+     * Build in Public: Click tab → click SVG icon → select "Recency"
+     * Fail in Public: Click tab → click SVG icon → select "Recency"
+     * Smol: Just click tab (no filter)
+   - Use playwriter_execute with Extract Tweets snippet to get the top 25 tweets from the filtered timeline
+   - "25 per tab" means up to 25 replies from the filtered timeline for that tab. Do NOT skip a tab after one empty extraction: scroll, wait 2–3 s, re-apply filter if needed, re-extract. Only move on after 2–3 retries still yield no new, unreplied tweets.
    - Select a suitable tweet to reply to (check tracking to avoid duplicates)
    - Navigate to the tweet URL via playwriter_execute
    - Use playwriter_execute with Get Page Text snippet to read tweet content
@@ -25,11 +31,11 @@ Your task:
    - ⚠️ CRITICAL: After posting reply on /status/ page, navigate back to home timeline (await page.goto('https://x.com/home')) to continue with next tweet
    - The tab and "Recency" filter should still be active - if not, re-click tab and re-apply filter
    - Continue with next tweet from the extracted list, or extract new batch if all processed
-   - After completing quota for a target (or if no suitable tweets), move to the next target immediately
-4. Do NOT wait between targets; move to the next target immediately after completing one. Complete all targets in one continuous run.
+   - After completing quota for a target (or if no suitable tweets after retries), move to the next target immediately
+4. Do NOT wait between targets; move to the next target immediately after completing one. Complete all targets in one continuous run. Aim for at least 100 total replies where possible.
 5. CRITICAL: Continue through ALL targets until:
    - All targets have reached their quota, OR
-   - There are no suitable tweets left in any target
+   - There are no suitable tweets left in any target (after retries)
 6. When reporting progress, list only completed targets and total (e.g. X/125 completed). Do not output "In progress" or "Waiting" sections.
 
 ${modeContext?.trackingSummary ? `Current tracking summary:\n${modeContext.trackingSummary}` : ''}`;
@@ -45,8 +51,13 @@ Workflow for each reply (use exact snippets from Playwriter Snippets section):
 1. Parse the instruction: which target (timeline tab), how many replies
 2. Use playwriter_execute with Navigation snippet: await page.goto('https://x.com/home', ...)
 3. Use playwriter_execute with timeline-tab snippets to click the selected tab
-4. ⚠️ CRITICAL: ALWAYS filter to "Recency" after clicking the tab: click the tab's SVG icon, then select "Recency" from the menu
-5. Use playwriter_execute with Extract Tweets snippet to get the top 10 tweets from the filtered timeline
+4. ⚠️ CRITICAL: Apply filter based on tab type:
+   * For you: Just click tab (no filter)
+   * Following: Click tab → click SVG icon → select "Recent"
+   * Build in Public: Click tab → click SVG icon → select "Recency"
+   * Fail in Public: Click tab → click SVG icon → select "Recency"
+   * Smol: Just click tab (no filter)
+5. Use playwriter_execute with Extract Tweets snippet to get the top 25 tweets from the filtered timeline
 6. Select ONE tweet to reply to (pick one with good engagement potential, check tracking to avoid duplicates)
 7. Use playwriter_execute to open the tweet (navigate to URL)
 8. On the tweet page: use playwriter_execute with Get Page Text snippet to read content

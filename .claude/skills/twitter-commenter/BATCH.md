@@ -14,6 +14,12 @@ Start batch mode with these commands:
 
 ---
 
+## Batch Goal
+
+**Target:** At least 100 replies (25 per tab where possible). The 25-per-tab target means replying to up to 25 tweets from the **filtered** timeline (Recency/Recent applied) per tab.
+
+---
+
 ## Pre-Start Check
 
 ```
@@ -121,9 +127,9 @@ Completed tabs:
 
 ## Skip Conditions
 
-When skipping specific tab:
+When skipping a specific tab:
 
-**Only skip if**: All visible tweets have already been replied to today (check tracking file for duplicates)
+**Skip only if** (1) the tab has reached its quota (25 replies), or (2) after **2–3 retries** (scroll down, wait 2–3 s, re-apply filter if needed, re-extract) there are still no new, unreplied tweets. Do not skip after a single empty extraction.
 
 **Never skip for**: Topic relevance, engagement level, or content type - reply to every tweet you see on each tab
 
@@ -146,7 +152,8 @@ When skipping specific tab:
 ---
 ## Batch Completion Report
 
-**Total Written**: 12/18
+**Total Written**: 12/125
+**Target**: At least 100 replies (25 per tab where possible). Met: No / Yes
 **Time Spent**: 1 hour 45 minutes
 
 ### Results by Tab
@@ -154,9 +161,9 @@ When skipping specific tab:
 |-----|---------|-------------|
 | For you | 3/25 | - |
 | Following | 3/25 | - |
-| Build in Public | 2/25 | All tweets already replied to |
-| Fail in Public | 2/25 | All tweets already replied to |
-| Smol | 2/25 | All tweets already replied to |
+| Build in Public | 2/25 | All tweets already replied to (after retries) |
+| Fail in Public | 2/25 | All tweets already replied to (after retries) |
+| Smol | 2/25 | All tweets already replied to (after retries) |
 
 ### Potential Customers Discovered
 - 1 (updated in leads/twitter.md)

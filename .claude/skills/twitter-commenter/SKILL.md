@@ -66,15 +66,18 @@ Browser interaction is handled through `playwriter_execute` and the **Playwriter
    → Navigate directly to "https://x.com/home"
    → Use timeline-tab snippets to click the selected tab from Step 1 (`For you`, `Following`, `Build in Public`, `Fail in Public`, or `Smol`)
 
-2. ⚠️ CRITICAL: ALWAYS filter to "Recency" after clicking any tab:
-   → Click the tab's SVG icon to open the filter menu
-   → Select `Recency` from the menu
-   → This ensures you always see the most recent tweets first
-   → Apply this pattern to ALL tabs (not just `Following`)
+2. ⚠️ CRITICAL: Apply filter based on tab type:
+   → `For you`: No filter menu - just click the tab
+   → `Following`: Click tab → Click SVG icon → Select `Recent`
+   → `Build in Public`: Click tab → Click SVG icon → Select `Recency`
+   → `Fail in Public`: Click tab → Click SVG icon → Select `Recency`
+   → `Smol`: No filter menu - just click the tab
+   → This ensures you always see the most recent tweets first when filtering is available
 
-3. Extract the top 10 tweets from the filtered timeline
+3. Extract the top 25 tweets from the filtered timeline
    → Use Playwriter snippets to read the list of tweets and their links
-   → Always limit extraction to the top 10 tweets (most recent)
+   → Always limit extraction to the top 25 tweets (most recent)
+   → The 25-per-tab goal is replies to tweets from the filtered timeline (Recency/Recent applied).
 
 4. Criteria for selecting tweets to reply to:
    • ⚠️ CRITICAL: Tweets you haven't replied to today
@@ -196,6 +199,7 @@ Browser interaction is handled through `playwriter_execute` and the **Playwriter
 ```
 ⚠️ CRITICAL: Judge accurately by referring to Step 3 analysis again
 
+→ Do not use product.md for Twitter; judge leads only from tweet content and leads/twitter.md criteria.
 → Refer to "Lead Selection Criteria" in leads/twitter.md
 → Classify as lead only users with actual problems/needs (not just opinions)
 
@@ -235,12 +239,19 @@ Update tracking/twitter/[today's-date].md file:
    → Use Playwriter Navigation snippet: await page.goto('https://x.com/home')
    → Wait for page to load
 
-2. The previously selected tab and "Recency" filter should still be active
-   → If the tab/filter is lost, re-click the tab and re-apply the "Recency" filter
+2. The previously selected tab and filter (if applicable) should still be active
+   → If the tab/filter is lost:
+     - Re-click the tab
+     - Re-apply filter if needed:
+       * Following: Select "Recent"
+       * Build in Public: Select "Recency"
+       * Fail in Public: Select "Recency"
+       * For you / Smol: No filter needed
    → Otherwise, proceed directly to extract the next tweet
 
 3. Continue with next tweet from the extracted list (from Step 2)
-   → If all tweets from the current extraction have been processed, extract a new batch of top 10 tweets
+   → If all tweets from the current extraction have been processed, extract a new batch of top 25 tweets
+   → If a new extraction returns 0 new tweets: scroll down, wait 2–3 s, re-apply filter if the tab was lost, then re-extract. Only consider the tab done after 2–3 such retries still yield no new, unreplied tweets.
    → Return to Step 3 to process the next tweet
 
 Note: In single reply mode, this step is not needed - the workflow ends after Step 8.
@@ -254,7 +265,6 @@ Note: In single reply mode, this step is not needed - the workflow ends after St
 |------|------------------|
 | `resources/targets.md` | Step 1 (target selection) |
 | `resources/personalization_twitter.md` | Step 5 (review) |
-| `resources/product.md` | Step 7 (potential customer judgment) |
 | `leads/twitter.md` | Step 7 (lead criteria check) |
 
 → Reference only at relevant Step, don't read in advance
