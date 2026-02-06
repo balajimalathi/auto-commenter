@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import * as browser from './browser.js';
 import type { Skill } from './skill-loader.js';
 import { output } from './ui/output.js';
+import { logToolCall, logToolResult } from './logger.js';
 
 export type ToolContext = {
   skill?: Skill;
@@ -145,20 +146,29 @@ export async function executeTool(
   ctx: ToolContext
 ): Promise<string> {
   const root = ctx.projectRoot;
+  const startTime = Date.now();
+
+  // Log tool call
+  logToolCall(name, args);
 
   try {
+    let result: string;
+
     switch (name) {
       case 'read_file': {
         const path = args.path as string;
         const fullPath = join(root, path);
         if (!fullPath.startsWith(root)) {
-          return JSON.stringify({ error: 'Path outside project root' });
+          result = JSON.stringify({ error: 'Path outside project root' });
+          break;
         }
         if (!existsSync(fullPath)) {
-          return JSON.stringify({ error: `File not found: ${path}` });
+          result = JSON.stringify({ error: `File not found: ${path}` });
+          break;
         }
         const content = await readFile(fullPath, 'utf-8');
-        return content;
+        result = content;
+        break;
       }
 
       case 'write_file': {
@@ -166,10 +176,12 @@ export async function executeTool(
         const content = args.content as string;
         const fullPath = join(root, path);
         if (!fullPath.startsWith(root)) {
-          return JSON.stringify({ error: 'Path outside project root' });
+          result = JSON.stringify({ error: 'Path outside project root' });
+          break;
         }
         await writeFile(fullPath, content, 'utf-8');
-        return JSON.stringify({ success: true, path });
+        result = JSON.stringify({ success: true, path });
+        break;
       }
 
       case 'append_file': {
@@ -177,45 +189,77 @@ export async function executeTool(
         const content = args.content as string;
         const fullPath = join(root, path);
         if (!fullPath.startsWith(root)) {
-          return JSON.stringify({ error: 'Path outside project root' });
+          result = JSON.stringify({ error: 'Path outside project root' });
+          break;
         }
         await appendFile(fullPath, content, 'utf-8');
-        return JSON.stringify({ success: true, path });
+        result = JSON.stringify({ success: true, path });
+        break;
       }
 
       case 'list_dir': {
         const path = args.path as string;
         const fullPath = join(root, path);
         if (!fullPath.startsWith(root)) {
-          return JSON.stringify({ error: 'Path outside project root' });
+          result = JSON.stringify({ error: 'Path outside project root' });
+          break;
         }
         if (!existsSync(fullPath)) {
-          return JSON.stringify({ error: `Directory not found: ${path}` });
+          result = JSON.stringify({ error: `Directory not found: ${path}` });
+          break;
         }
         const entries = await readdir(fullPath, { withFileTypes: true });
-        const result = entries.map(e => ({
+        const dirResult = entries.map(e => ({
           name: e.name,
           type: e.isDirectory() ? 'directory' : 'file',
         }));
-        return JSON.stringify(result, null, 2);
+        result = JSON.stringify(dirResult, null, 2);
+        break;
       }
 
       case 'playwriter_execute': {
         const code = args.code as string;
         const timeout = (args.timeout as number) ?? 30000;
-        const result = await browser.executeScript(code, timeout);
-        if (result.isError) {
-          return JSON.stringify({ error: result.text });
+        const browserResult = await browser.executeScript(code, timeout);
+        if (browserResult.isError) {
+          result = JSON.stringify({ error: browserResult.text });
+        } else {
+          result = browserResult.text;
         }
-        return result.text;
+        break;
       }
 
       default:
-        return JSON.stringify({ error: `Unknown tool: ${name}` });
+        result = JSON.stringify({ error: `Unknown tool: ${name}` });
     }
+
+    const durationMs = Date.now() - startTime;
+    
+    // Check for errors in result
+    let error: string | undefined;
+    try {
+      const parsed = JSON.parse(result);
+      if (parsed.error) {
+        error = parsed.error;
+      }
+    } catch {
+      // Not JSON or no error field - that's fine
+    }
+
+    // Log tool result
+    logToolResult(name, result, durationMs, error);
+
+    return result;
   } catch (error) {
+    const durationMs = Date.now() - startTime;
     const message = error instanceof Error ? error.message : 'Unknown error';
     output.error(`Tool "${name}" failed: ${message}`);
-    return JSON.stringify({ error: message });
+    
+    const errorResult = JSON.stringify({ error: message });
+    
+    // Log tool result with error
+    logToolResult(name, errorResult, durationMs, message);
+    
+    return errorResult;
   }
 }

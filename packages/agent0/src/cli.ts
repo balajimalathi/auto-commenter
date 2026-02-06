@@ -1,6 +1,3 @@
-import { createInterface } from 'readline';
-import { Command } from 'commander';
-import * as p from '@clack/prompts';
 import { output } from './ui/output.js';
 import { showBanner } from './ui/banner.js';
 import { discoverSkills } from './skill-loader.js';
@@ -9,244 +6,187 @@ import { runCommenterMode } from './modes/commenter.js';
 import { runNotificationsMode } from './modes/notifications.js';
 import { runTrendingMode } from './modes/trending.js';
 import { runPostMode } from './modes/post.js';
+import {
+  selectSkill,
+  selectMode,
+  promptInstruction,
+  promptTarget,
+  promptNextAction,
+  selectMainAction,
+} from './ui/prompts-inquirer.js';
 
-export function createCLI(): Command {
-  const program = new Command();
-
-  program
-    .name('agent0')
-    .description('Autonomous CLI for skill-based browser automation')
-    .version('1.0.0');
-
-  // Batch mode command
-  program
-    .command('batch')
-    .description('Run batch mode to fill daily quota')
-    .option('-s, --skill <name>', 'Skill to use', 'reddit-commenter')
-    .action(async (options) => {
-      await runWithSkillSelection(options.skill, 'batch');
-    });
-
-  // Comment command
-  program
-    .command('comment [instruction]')
-    .description('Post comments based on instruction')
-    .option('-s, --skill <name>', 'Skill to use', 'reddit-commenter')
-    .action(async (instruction, options) => {
-      const finalInstruction = instruction || await promptForInstruction('comment');
-      await runWithSkillSelection(options.skill, 'commenter', finalInstruction);
-    });
-
-  // Notifications command
-  program
-    .command('notifications')
-    .alias('notif')
-    .description('Check and interact with notifications')
-    .option('-s, --skill <name>', 'Skill to use', 'reddit-commenter')
-    .action(async (options) => {
-      await runWithSkillSelection(options.skill, 'notifications');
-    });
-
-  // Trending command
-  program
-    .command('trending')
-    .description('Find trending posts for inspiration')
-    .option('-s, --skill <name>', 'Skill to use', 'reddit-commenter')
-    .option('-t, --target <name>', 'Specific target to check (subreddit or timeline tab)')
-    .action(async (options) => {
-      await runWithSkillSelection(options.skill, 'trending', options.target);
-    });
-
-  // Post command
-  program
-    .command('post [content]')
-    .description('Write and post content')
-    .option('-s, --skill <name>', 'Skill to use', 'reddit-commenter')
-    .action(async (content, options) => {
-      const finalContent = content || await promptForInstruction('post');
-      await runWithSkillSelection(options.skill, 'post', finalContent);
-    });
-
-  // Interactive mode (default when no command)
-  program
-    .command('interactive', { isDefault: true })
-    .description('Start interactive mode')
-    .action(async () => {
-      await runInteractiveMode();
-    });
-
-  return program;
-}
-
-async function promptForInstruction(type: string): Promise<string> {
-  const placeholders: Record<string, string> = {
-    comment: 'Post 3 comments on r/saas',
-    post: 'Write a post about...',
-  };
-  const result = await p.text({
-    message: `Enter ${type} instruction:`,
-    placeholder: placeholders[type] ?? 'Enter instruction...',
-    validate: (value) => {
-      if (!value.trim()) return 'Instruction is required';
-      return undefined;
-    },
-  });
-
-  if (p.isCancel(result)) {
-    p.cancel('Operation cancelled.');
-    process.exit(0);
-  }
-
-  return result as string;
-}
-
-async function runWithSkillSelection(
-  skillName: string,
-  mode: string,
-  instruction?: string
-): Promise<void> {
+/**
+ * Run a single mode execution
+ */
+async function runSingleMode(): Promise<void> {
   showBanner();
-  
+
   const skills = await discoverSkills();
-  
   if (skills.length === 0) {
     output.error('No skills found in .claude/skills/');
     process.exit(1);
   }
 
-  // If skill not found, prompt for selection
-  if (!skills.includes(skillName)) {
-    output.warning(`Skill "${skillName}" not found.`);
-    
-    const selected = await p.select({
-      message: 'Select a skill:',
-      options: skills.map(s => ({ value: s, label: s })),
-    });
+  const skill = await selectSkill(skills);
+  const mode = await selectMode();
 
-    if (p.isCancel(selected)) {
-      p.cancel('Operation cancelled.');
-      process.exit(0);
-    }
+  let instruction: string | undefined;
+  let target: string | undefined;
 
-    skillName = selected as string;
+  if (mode === 'commenter' || mode === 'post') {
+    instruction = await promptInstruction(mode === 'commenter' ? 'comment' : 'post');
+  } else if (mode === 'trending') {
+    target = await promptTarget();
   }
 
-  output.info(`Using skill: ${skillName}`);
+  output.info(`Using skill: ${skill}`);
   output.info(`Mode: ${mode}`);
+  output.divider();
 
-  switch (mode) {
-    case 'batch':
-      await runBatchMode(skillName);
-      break;
-    case 'commenter':
-      await runCommenterMode(skillName, instruction || '');
-      break;
-    case 'notifications':
-      await runNotificationsMode(skillName);
-      break;
-    case 'trending':
-      await runTrendingMode(skillName, instruction);
-      break;
-    case 'post':
-      await runPostMode(skillName, instruction || '');
-      break;
-    default:
-      output.error(`Unknown mode: ${mode}`);
+  await executeMode(skill, mode, instruction, target);
+}
+
+/**
+ * Execute a mode with given parameters
+ */
+async function executeMode(
+  skill: string,
+  mode: string,
+  instruction?: string,
+  target?: string
+): Promise<void> {
+  try {
+    switch (mode) {
+      case 'batch':
+        await runBatchMode(skill);
+        break;
+      case 'commenter':
+        if (!instruction) {
+          throw new Error('Instruction is required for commenter mode');
+        }
+        await runCommenterMode(skill, instruction);
+        break;
+      case 'notifications':
+        await runNotificationsMode(skill);
+        break;
+      case 'trending':
+        await runTrendingMode(skill, target);
+        break;
+      case 'post':
+        if (!instruction) {
+          throw new Error('Instruction is required for post mode');
+        }
+        await runPostMode(skill, instruction);
+        break;
+      default:
+        output.error(`Unknown mode: ${mode}`);
+        return;
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    output.error(`Mode execution failed: ${errorMessage}`);
+    throw error;
   }
 }
 
-async function runInteractiveMode(): Promise<void> {
+/**
+ * Run interactive loop mode
+ */
+async function runInteractiveLoop(): Promise<void> {
   showBanner();
 
   const skills = await discoverSkills();
-  
   if (skills.length === 0) {
     output.error('No skills found in .claude/skills/');
     process.exit(1);
   }
 
   while (true) {
-    // Select skill
-    const skill = await p.select({
-      message: 'Select a skill:',
-      options: skills.map(s => ({ value: s, label: s })),
-    });
-
-    if (p.isCancel(skill)) {
-      p.cancel('Operation cancelled.');
-      process.exit(0);
-    }
-
-    // Select mode
-    const mode = await p.select({
-      message: 'Select a mode:',
-      options: [
-        { value: 'batch', label: 'Batch Mode', hint: 'Fill daily quota' },
-        { value: 'commenter', label: 'Comment', hint: 'Post specific comments' },
-        { value: 'notifications', label: 'Notifications', hint: 'Check and respond' },
-        { value: 'trending', label: 'Trending', hint: 'Find trending posts' },
-        { value: 'post', label: 'Post', hint: 'Write and publish content' },
-      ],
-    });
-
-    if (p.isCancel(mode)) {
-      p.cancel('Operation cancelled.');
-      process.exit(0);
-    }
+    output.divider();
+    
+    const skill = await selectSkill(skills);
+    const mode = await selectMode();
 
     let instruction: string | undefined;
+    let target: string | undefined;
 
-    if (mode === 'commenter') {
-      instruction = await promptForInstruction('comment');
-    } else if (mode === 'post') {
-      instruction = await promptForInstruction('post');
+    if (mode === 'commenter' || mode === 'post') {
+      instruction = await promptInstruction(mode === 'commenter' ? 'comment' : 'post');
+    } else if (mode === 'trending') {
+      target = await promptTarget();
     }
 
-    await runWithSkillSelection(skill as string, mode as string, instruction);
+    output.info(`Using skill: ${skill}`);
+    output.info(`Mode: ${mode}`);
+    output.divider();
 
-    // Restore stdin so the next prompt can receive input (avoids freeze after long runs e.g. batch)
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(false);
-      process.stdin.resume();
-      process.stdin.removeAllListeners('data');
+    try {
+      await executeMode(skill, mode, instruction, target);
+      output.success('Mode completed');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      output.error(`Mode failed: ${errorMessage}`);
     }
-    process.stdout.write('\n');
 
-    const runAgain = await promptRunAnotherTask();
-    if (runAgain === null) {
-      process.exit(0);
-    }
-    if (!runAgain) {
+    // Ask what to do next
+    const nextAction = await promptNextAction({ hasScript: false });
+    
+    if (nextAction === 'exit') {
+      output.info('Exiting interactive mode');
       break;
     }
+    // manual means continue loop (run another mode)
   }
 }
 
 /**
- * Ask "Run another task? (y/n):" using readline so it works after long runs (batch).
- * Returns true to continue, false to exit, null if cancelled (Ctrl+C).
+ * Main CLI entry point
  */
-function promptRunAnotherTask(): Promise<boolean | null> {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
+export async function runCLI(): Promise<void> {
+  while (true) {
+    const action = await selectMainAction();
 
-    const onSigInt = () => {
-      rl.close();
-      process.removeListener('SIGINT', onSigInt);
-      process.stdout.write('\n');
-      resolve(null);
-    };
-    process.on('SIGINT', onSigInt);
+    switch (action) {
+      case 'single':
+        await runSingleMode();
+        // After single mode, ask if they want to do something else
+        const nextAfterSingle = await promptNextAction({ hasScript: false });
+        if (nextAfterSingle === 'exit') {
+          return;
+        }
+        // manual means continue loop (show main menu again)
+        break;
 
-    rl.question('Run another task? (y/n): ', (answer) => {
-      process.removeListener('SIGINT', onSigInt);
-      rl.close();
-      const trimmed = answer.trim().toLowerCase();
-      if (trimmed === 'y' || trimmed === 'yes') {
-        resolve(true);
-      } else {
-        resolve(false);
+      case 'script': {
+        const { selectScriptFile } = await import('./ui/prompts-inquirer.js');
+        const { executeScript, loadScript } = await import('./script-executor.js');
+        
+        try {
+          const scriptPath = await selectScriptFile();
+          const script = await loadScript(scriptPath);
+          await executeScript(script);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          output.error(`Script execution failed: ${errorMessage}`);
+        }
+        
+        // After script, ask if they want to do something else
+        const nextAfterScript = await promptNextAction({ hasScript: false });
+        if (nextAfterScript === 'exit') {
+          return;
+        }
+        // manual means continue loop (show main menu again)
+        break;
       }
-    });
-  });
+
+      case 'interactive':
+        await runInteractiveLoop();
+        // After interactive loop ends, return to main menu
+        break;
+
+      case 'exit':
+        output.info('Goodbye!');
+        return;
+    }
+  }
 }

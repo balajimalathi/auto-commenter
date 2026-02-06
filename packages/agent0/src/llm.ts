@@ -6,6 +6,11 @@ import {
   type ToolDefinition,
 } from './tools.js';
 import { getProjectRoot, type Skill } from './skill-loader.js';
+import {
+  logOpenRouterRequest,
+  logOpenRouterResponse,
+  logIteration,
+} from './logger.js';
 
 export type ModelTask = 'summarize' | 'comment' | 'review' | 'analyze' | 'general';
 
@@ -117,6 +122,14 @@ async function callOpenRouter(options: CallOpenRouterOptions): Promise<CallOpenR
   const { model, temperature, messages, tools } = options;
   const config = getLLMConfig();
 
+  // Log request
+  logOpenRouterRequest({
+    model,
+    temperature,
+    messages,
+    tools: tools || undefined,
+  });
+
   const body: Record<string, unknown> = {
     model,
     messages: serializeMessages(messages),
@@ -145,7 +158,7 @@ async function callOpenRouter(options: CallOpenRouterOptions): Promise<CallOpenR
   const data = await response.json();
   const msg = data.choices[0]?.message;
 
-  return {
+  const result = {
     content: msg?.content ?? null,
     tool_calls: msg?.tool_calls,
     finish_reason: data.choices[0]?.finish_reason,
@@ -157,6 +170,14 @@ async function callOpenRouter(options: CallOpenRouterOptions): Promise<CallOpenR
         }
       : undefined,
   };
+
+  // Log response
+  logOpenRouterResponse({
+    model,
+    ...result,
+  });
+
+  return result;
 }
 
 /**
@@ -546,7 +567,10 @@ export async function runAgenticLoop(
       lastContent = result.content;
     }
 
-    if (!result.tool_calls || result.tool_calls.length === 0) {
+    const hasToolCalls = !!(result.tool_calls && result.tool_calls.length > 0);
+    logIteration(i + 1, maxIterations, hasToolCalls);
+
+    if (!hasToolCalls) {
       spinner?.succeed('Done');
       return lastContent || '(No response)';
     }

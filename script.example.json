@@ -1,0 +1,20 @@
+[
+  {
+    "mode": "batch",
+    "skill": "reddit-commenter"
+  },
+  {
+    "mode": "notifications",
+    "skill": "reddit-commenter"
+  },
+  {
+    "mode": "commenter",
+    "skill": "twitter-commenter",
+    "instruction": "Post 3 replies on For you"
+  },
+  {
+    "mode": "trending",
+    "skill": "reddit-commenter",
+    "target": "r/saas"
+  }
+]
