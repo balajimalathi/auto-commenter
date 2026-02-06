@@ -2,22 +2,22 @@ import { output } from '../ui/output.js';
 import { runCommenterWithToolCalling } from '../agent-runner.js';
 
 /**
- * Parse instruction to extract subreddit and count for display
+ * Parse instruction to extract target and count for display
  * Examples:
- * - "Post 3 comments on r/chatgptpro"
- * - "Write one comment on r/Subreddit"
- * - "Comment on r/nocode"
+ * - "Post 3 comments on r/nocode" (Reddit)
+ * - "Write one reply on For you" (Twitter)
+ * - "Comment on r/nocode" (Reddit)
  */
 function parseInstruction(instruction: string): {
-  subreddit: string;
+  target: string;
   count: number;
 } {
-  // Extract subreddit
+  // Extract target - could be r/subreddit or timeline tab name
   const subredditMatch = instruction.match(/r\/(\w+)/i);
-  const subreddit = subredditMatch ? subredditMatch[1] : '';
+  const target = subredditMatch ? subredditMatch[1] : '';
 
   // Extract count
-  const countMatch = instruction.match(/(\d+)\s*comments?/i);
+  const countMatch = instruction.match(/(\d+)\s*(?:comments?|replies?)/i);
   const oneMatch = instruction.match(/\bone\b/i);
   
   let count = 1;
@@ -27,7 +27,7 @@ function parseInstruction(instruction: string): {
     count = 1;
   }
 
-  return { subreddit, count };
+  return { target, count };
 }
 
 /**
@@ -37,16 +37,21 @@ export async function runCommenterMode(
   skillName: string,
   instruction: string
 ): Promise<void> {
-  const { subreddit, count } = parseInstruction(instruction);
+  const { target, count } = parseInstruction(instruction);
 
-  if (!subreddit) {
-    output.error('Could not parse subreddit from instruction');
-    output.info('Example: "Post 3 comments on r/chatgptpro"');
+  if (!target) {
+    output.error('Could not parse target from instruction');
+    output.info('Example: "Post 3 comments on r/nocode" or "Write one reply on For you"');
     return;
   }
 
-  output.info(`Target: r/${subreddit}`);
-  output.info(`Comments to post: ${count}`);
+  // Determine if it's a Reddit subreddit (starts with r/) or Twitter target
+  const isSubreddit = instruction.toLowerCase().includes('r/');
+  const targetLabel = isSubreddit ? `r/${target}` : target;
+  const actionLabel = isSubreddit ? 'Comments' : 'Replies';
+  
+  output.info(`Target: ${targetLabel}`);
+  output.info(`${actionLabel} to post: ${count}`);
 
   try {
     // Run the agentic loop - LLM handles the workflow

@@ -10,7 +10,7 @@ export async function runPostMode(
 ): Promise<void> {
   if (!content.trim()) {
     output.error('Post content/instruction is required');
-    output.info('Example: "Write a post about AI tools in r/chatgptpro"');
+    output.info('Example: "Write a post about AI tools in r/nocode"');
     return;
   }
 

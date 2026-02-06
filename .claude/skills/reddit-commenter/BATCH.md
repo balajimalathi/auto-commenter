@@ -156,7 +156,6 @@ r/grok skipped - No suitable posts
 ### Results by Subreddit
 | Subreddit | Written | Skip Reason |
 |-----------|---------|-------------|
-| r/chatgptpro | 3/3 | - |
 | r/nocode | 3/3 | - |
 | r/microsaas | 2/3 | No suitable posts |
 | r/grok | 0/3 | All skipped (no technical discussion) |

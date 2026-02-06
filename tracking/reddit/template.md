@@ -11,7 +11,6 @@
 
 | Subreddit | Today's Comments | Daily Limit | Last Comment |
 |-----------|------------------|-------------|--------------|
-| r/chatgptpro | 0 | 3 | - |
 | r/nocode | 0 | 3 | - |
 | r/openai | 0 | 3 | - |
 | r/saas | 0 | 3 | - |

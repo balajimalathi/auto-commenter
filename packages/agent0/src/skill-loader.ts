@@ -16,7 +16,7 @@ export interface Skill {
 
 export interface SkillResources {
   personalization: string | null;
-  subreddits: string | null;
+  targets: string | null;
   product: string | null;
   [key: string]: string | null;
 }
@@ -199,35 +199,36 @@ export async function loadLeads(skill: Skill): Promise<string | null> {
 }
 
 /**
- * Parse subreddits from subreddits.md resource
+ * Parse targets from targets.md resource
  */
-export interface SubredditInfo {
+export interface TargetInfo {
   name: string;
   dailyLimit: number;
 }
 
-export function parseSubreddits(subredditsContent: string): SubredditInfo[] {
-  const subreddits: SubredditInfo[] = [];
+export function parseTargets(targetsContent: string): TargetInfo[] {
+  const targets: TargetInfo[] = [];
   
-  // Look for table rows like: | r/chatgptpro | ~15K | 3 |
-  const tableRegex = /\|\s*r\/(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
+  // Look for table rows like: | r/chatgptpro | ~15K | 3 | or | For you | ~500K posts | 25 |
+  // Supports both Reddit format (r/name) and Twitter format (tab name)
+  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
   let match;
   
-  while ((match = tableRegex.exec(subredditsContent)) !== null) {
-    subreddits.push({
+  while ((match = tableRegex.exec(targetsContent)) !== null) {
+    targets.push({
       name: match[1],
       dailyLimit: parseInt(match[2], 10),
     });
   }
 
-  return subreddits;
+  return targets;
 }
 
 /**
  * Parse tracking file to get today's activity
  */
 export interface TrackingActivity {
-  subreddit: string;
+  target: string;
   todayComments: number;
   dailyLimit: number;
   lastComment: string | null;
@@ -236,13 +237,14 @@ export interface TrackingActivity {
 export function parseTracking(trackingContent: string): TrackingActivity[] {
   const activities: TrackingActivity[] = [];
   
-  // Look for table rows like: | r/chatgptpro | 2 | 3 | 14:30 |
-  const tableRegex = /\|\s*r\/(\w+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
+  // Look for table rows like: | r/nocode | 2 | 3 | 14:30 | or | For you | 2 | 25 | 14:30 |
+  // Supports both Reddit format (r/name) and Twitter format (tab name)
+  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
   let match;
   
   while ((match = tableRegex.exec(trackingContent)) !== null) {
     activities.push({
-      subreddit: match[1],
+      target: match[1],
       todayComments: parseInt(match[2], 10),
       dailyLimit: parseInt(match[3], 10),
       lastComment: match[4].trim() === '-' ? null : match[4].trim(),

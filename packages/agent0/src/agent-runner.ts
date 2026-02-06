@@ -3,11 +3,12 @@ import { loadSkill, loadResource, type Skill } from './skill-loader.js';
 import { readMemory } from './memory.js';
 import { runAgenticLoop } from './llm.js';
 import { connectBrowser, closeBrowser } from './browser.js';
+import { loadPlatformInstructions } from './modes/instructions/index.js';
 
 export type AgentMode = 'batch' | 'commenter' | 'notifications' | 'trending' | 'post';
 
 export interface ModeContext {
-  subreddit?: string;
+  target?: string;
   count?: number;
   trackingSummary?: string;
   [key: string]: string | number | undefined;
@@ -16,7 +17,7 @@ export interface ModeContext {
 /**
  * Build the system prompt for a given mode
  */
-function buildSystemPrompt(
+async function buildSystemPrompt(
   skill: Skill,
   mode: AgentMode,
   skillContent: string,
@@ -26,10 +27,10 @@ function buildSystemPrompt(
   product: string | null,
   playwriterSnippets: string | null,
   modeContext?: ModeContext
-): string {
+): Promise<string> {
   const baseToolsSection = `## Available Tools
 You have access to these tools. Use them to accomplish the task:
-- read_file: Read files (skill instructions, tracking, personalization, subreddit rules, memory)
+- read_file: Read files (skill instructions, tracking, personalization, target rules, memory)
 - write_file, append_file: Update tracking files, leads, memory
 - list_dir: Discover files
 - playwriter_execute: Execute Playwriter JavaScript in the browser. ALWAYS use the exact snippets from the "Playwriter Snippets" section below. Do NOT use accessibilitySnapshot. Use user-defined selectors (e.g. await page.click('comment-composer-host')). Scope: page, state, context.`;
@@ -55,117 +56,37 @@ ${memory}`;
     ? `## Personalization Guide
 ${personalization}`
     : `## Personalization
-(Use read_file to load .claude/skills/${skill.name}/resources/personalization_reddit.md)`;
+(Use read_file to load .claude/skills/${skill.name}/resources/personalization_${skill.platform}.md)`;
 
   const productSection = product
     ? `## Product Info
 ${product}`
     : '';
 
-  // Mode-specific instructions
-  let modeInstructions = '';
+  // Load platform-specific instructions dynamically
+  const platformInstructions = await loadPlatformInstructions(skill.platform);
   
+  // Get mode-specific instructions
+  let modeInstructions = '';
   switch (mode) {
     case 'batch':
-      modeInstructions = `## Batch Mode Instructions
-${batchContent || 'Fill today\'s quota according to the skill workflow.'}
-
-Your task:
-1. Read today's tracking file (tracking/${skill.platform}/YYYY-MM-DD.md) to see current progress
-2. Identify subreddits that haven't reached their daily limit
-3. For each subreddit with remaining quota:
-   - Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/r/{subreddit}/new/', ...)
-   - Use playwriter_execute with Extract Reddit Posts snippet to get posts
-   - Select a suitable post to comment on
-   - Navigate to the post URL via playwriter_execute
-   - Use playwriter_execute with Get Page Text snippet to read post content
-   - Generate a helpful, natural comment following personalization guidelines
-   - Use playwriter_execute: await page.click('comment-composer-host'), then type and submit the comment
-   - Update tracking file with the new comment
-   - Update memory with the action
-   - After completing 3 comments for a subreddit (or if no suitable posts), move to the next subreddit immediately
-4. Do NOT wait between subreddits; move to the next subreddit immediately after completing one. Complete all subreddits in one continuous run.
-5. CRITICAL: Continue through ALL subreddits until:
-   - All subreddits have reached their quota (3 comments each), OR
-   - There are no suitable posts left in any subreddit
-6. When reporting progress, list only completed subreddits and total (e.g. X/24 completed). Do not output "In progress" or "Waiting" sections.
-
-${modeContext?.trackingSummary ? `Current tracking summary:\n${modeContext.trackingSummary}` : ''}`;
+      modeInstructions = platformInstructions.batch(skill, batchContent, modeContext);
       break;
-
     case 'commenter':
-      modeInstructions = `## Commenter Mode Instructions
-CRITICAL: Commenter writes COMMENTS on EXISTING posts. NEVER create a new post. Do NOT click "Create Post" or similar. You are replying to others' content, not publishing your own.
-
-Your task: Write comments on existing posts based on the user's instruction.
-
-Workflow for each comment (use exact snippets from Playwriter Snippets section):
-1. Parse the instruction: which subreddit (r/X), how many comments
-2. Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/r/{subreddit}/new/', ...)
-3. Use playwriter_execute with Scroll snippet if needed
-4. Use playwriter_execute with Extract Reddit Posts snippet to get posts
-5. Select ONE post to comment on (pick one with good engagement potential)
-6. Use playwriter_execute to open the post (navigate to URL)
-7. On the post page: use playwriter_execute with Get Page Text snippet to read content
-8. Write a helpful, natural comment that replies to that specific post (following personalization guidelines)
-9. Use playwriter_execute: await page.click('comment-composer-host'), then use Type into Input snippet, then submit the comment
-10. Update tracking and memory
-11. If the user's instruction requests multiple comments, repeat steps 2–10 until you have successfully posted that exact number of comments (or there are no suitable posts left).`;
+      modeInstructions = platformInstructions.commenter(skill);
       break;
-
     case 'notifications':
-      modeInstructions = `## Notifications Mode Instructions
-Your task: Check Reddit notifications and respond to any replies.
-
-Workflow (use exact snippets from Playwriter Snippets section):
-1. Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/message/inbox/', ...)
-2. Use playwriter_execute with Get Page Text snippet to read notifications
-3. Identify any replies to your comments that need responses
-4. For each reply that warrants a response:
-   - Read the context (original post, your comment, their reply)
-   - Generate a thoughtful, helpful response
-   - Use playwriter_execute with Click by Selector snippet, then Type into Input snippet to post the reply
-   - Update memory with the interaction
-5. Mark notifications as read if possible via playwriter_execute
-6. Report what notifications you handled`;
+      modeInstructions = platformInstructions.notifications(skill);
       break;
-
     case 'trending':
-      modeInstructions = `## Trending Mode Instructions
-Your task: Find trending posts for inspiration or reposting opportunities.
-
-Workflow (use exact snippets from Playwriter Snippets section):
-1. Use playwriter_execute with Navigation snippet: await page.goto('https://www.reddit.com/r/{subreddit}/hot/', ...) or /rising/
-2. Use playwriter_execute with Extract Reddit Posts snippet to get post data
-3. For each interesting post:
-   - Note the title, engagement level, topic
-   - Analyze why it's trending (topic relevance, timing, format)
-4. Compile a summary of trending topics and post ideas
-5. Optionally save the summary to a file (trending_{subreddit}_{date}.md)
-6. Return the trending analysis to the user
-
-${modeContext?.subreddit ? `Target subreddit: r/${modeContext.subreddit}` : 'Check multiple subreddits from the subreddits.md resource.'}`;
+      modeInstructions = platformInstructions.trending(skill, modeContext);
       break;
-
     case 'post':
-      modeInstructions = `## Post Mode Instructions
-Your task: Draft and publish a new post based on the user's instruction.
-
-Workflow (use exact snippets from Playwriter Snippets section):
-1. Parse the instruction to understand: which subreddit, what topic/content
-2. Read subreddit rules for the target subreddit
-3. Draft the post title and content following:
-   - Subreddit rules and culture
-   - Personalization guidelines
-   - The user's intent
-4. Use playwriter_execute with Navigation snippet to go to the subreddit
-5. Use playwriter_execute with Click by Selector and Type into Input snippets to fill and submit the post
-6. Update memory with the post details
-7. Report the post URL or any issues`;
+      modeInstructions = platformInstructions.post(skill);
       break;
   }
 
-  return `You are Agent0, an autonomous agent executing Reddit engagement tasks.
+  return `You are Agent0, an autonomous agent executing ${skill.platform} engagement tasks.
 
 ${baseToolsSection}
 
@@ -213,12 +134,12 @@ export async function runWithToolCalling(
     const skillContent = skill.skillContent;
     const batchContent = skill.batchContent;
     const memory = await readMemory(skill);
-    const personalization = await loadResource(skill, 'personalization_reddit');
+    const personalization = await loadResource(skill, `personalization_${skill.platform}`);
     const product = await loadResource(skill, 'product');
     const playwriterSnippets = await loadResource(skill, 'playwriter_snippets');
 
     // Build mode-specific system prompt
-    const systemPrompt = buildSystemPrompt(
+    const systemPrompt = await buildSystemPrompt(
       skill,
       mode,
       skillContent,
@@ -238,7 +159,7 @@ export async function runWithToolCalling(
 
     // Mode-appropriate iteration limits:
     // commenter: multi-comment runs (~8-10 iterations per comment)
-    // batch: full quota across all subreddits (~6-7 iterations per comment x 33 comments)
+    // batch: full quota across all targets (~6-7 iterations per comment x total comments)
     // notifications: focused tasks
     // trending/post: moderate complexity
     const maxIterationsMap: Record<AgentMode, number> = {
@@ -279,10 +200,11 @@ export async function runBatchWithToolCalling(
   trackingSummary?: string
 ): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
+  const skill = await loadSkill(skillName);
   return runWithToolCalling(
     skillName,
     'batch',
-    `Fill today's quota according to BATCH.md. Check tracking/reddit/${today}.md for current status.`,
+    `Fill today's quota according to BATCH.md. Check tracking/${skill.platform}/${today}.md for current status.`,
     { trackingSummary }
   );
 }
@@ -297,22 +219,26 @@ export async function runCommenterWithToolCalling(
 export async function runNotificationsWithToolCalling(
   skillName: string
 ): Promise<string> {
+  const skill = await loadSkill(skillName);
+  const platformLabel = skill.platform === 'reddit' ? 'Reddit' : skill.platform === 'twitter' ? 'X/Twitter' : skill.platform;
   return runWithToolCalling(
     skillName,
     'notifications',
-    'Check Reddit notifications and respond to any replies that need attention.'
+    `Check ${platformLabel} notifications and respond to any replies that need attention.`
   );
 }
 
 export async function runTrendingWithToolCalling(
   skillName: string,
-  subreddit?: string
+  target?: string
 ): Promise<string> {
-  const prompt = subreddit
-    ? `Find trending posts in r/${subreddit} and analyze what's popular.`
-    : 'Find trending posts across configured subreddits and compile a summary.';
+  const skill = await loadSkill(skillName);
+  const platformLabel = skill.platform === 'reddit' ? 'posts' : skill.platform === 'twitter' ? 'tweets' : 'content';
+  const prompt = target
+    ? `Find trending ${platformLabel} in ${skill.platform === 'reddit' ? `r/${target}` : target} and analyze what's popular.`
+    : `Find trending content across configured targets and compile a summary.`;
   
-  return runWithToolCalling(skillName, 'trending', prompt, { subreddit });
+  return runWithToolCalling(skillName, 'trending', prompt, { target });
 }
 
 export async function runPostWithToolCalling(

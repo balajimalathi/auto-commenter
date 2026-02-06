@@ -52,9 +52,9 @@ export function createCLI(): Command {
     .command('trending')
     .description('Find trending posts for inspiration')
     .option('-s, --skill <name>', 'Skill to use', 'reddit-commenter')
-    .option('-r, --subreddit <name>', 'Specific subreddit to check')
+    .option('-t, --target <name>', 'Specific target to check (subreddit or timeline tab)')
     .action(async (options) => {
-      await runWithSkillSelection(options.skill, 'trending', options.subreddit);
+      await runWithSkillSelection(options.skill, 'trending', options.target);
     });
 
   // Post command
@@ -80,7 +80,7 @@ export function createCLI(): Command {
 
 async function promptForInstruction(type: string): Promise<string> {
   const placeholders: Record<string, string> = {
-    comment: 'Post 3 comments on r/chatgptpro',
+    comment: 'Post 3 comments on r/saas',
     post: 'Write a post about...',
   };
   const result = await p.text({

@@ -91,12 +91,14 @@ export async function appendMemory(
  */
 export async function logComment(
   skill: Skill,
-  subreddit: string,
+  target: string,
   postTitle: string,
   outcome: 'success' | 'failure' | 'skipped'
 ): Promise<void> {
-  await appendMemory(skill, 'Comment posted', {
-    subreddit: `r/${subreddit}`,
+  const isReddit = skill.platform === 'reddit';
+  const targetLabel = isReddit ? `r/${target}` : target;
+  await appendMemory(skill, isReddit ? 'Comment posted' : 'Reply posted', {
+    target: targetLabel,
     post: postTitle.substring(0, 50) + (postTitle.length > 50 ? '...' : ''),
   }, outcome);
 }
@@ -106,12 +108,14 @@ export async function logComment(
  */
 export async function logBatchProgress(
   skill: Skill,
-  subreddit: string,
+  target: string,
   current: number,
   total: number
 ): Promise<void> {
+  const isReddit = skill.platform === 'reddit';
+  const targetLabel = isReddit ? `r/${target}` : target;
   await appendMemory(skill, 'Batch step', {
-    subreddit: `r/${subreddit}`,
+    target: targetLabel,
     progress: `${current}/${total}`,
   }, 'success');
 }
@@ -121,28 +125,34 @@ export async function logBatchProgress(
  */
 export async function logLeadFound(
   skill: Skill,
-  subreddit: string,
+  target: string,
   username: string,
   relevance: string
 ): Promise<void> {
+  const isReddit = skill.platform === 'reddit';
+  const targetLabel = isReddit ? `r/${target}` : target;
+  const userLabel = isReddit ? `u/${username}` : `@${username}`;
   await appendMemory(skill, 'Lead found', {
-    subreddit: `r/${subreddit}`,
-    user: `u/${username}`,
+    target: targetLabel,
+    user: userLabel,
     relevance,
   }, 'success');
 }
 
 /**
- * Log subreddit completion
+ * Log target completion
  */
-export async function logSubredditComplete(
+export async function logTargetComplete(
   skill: Skill,
-  subreddit: string,
+  target: string,
   commentsPosted: number
 ): Promise<void> {
-  await appendMemory(skill, 'Subreddit complete', {
-    subreddit: `r/${subreddit}`,
-    comments: commentsPosted.toString(),
+  const isReddit = skill.platform === 'reddit';
+  const targetLabel = isReddit ? `r/${target}` : target;
+  const actionLabel = isReddit ? 'comments' : 'replies';
+  await appendMemory(skill, 'Target complete', {
+    target: targetLabel,
+    [actionLabel]: commentsPosted.toString(),
   }, 'success');
 }
 

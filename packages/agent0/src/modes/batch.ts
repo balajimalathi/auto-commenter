@@ -1,8 +1,8 @@
 import { output } from '../ui/output.js';
-import { loadSkill, loadTracking, parseTracking, parseSubreddits, loadResource } from '../skill-loader.js';
+import { loadSkill, loadTracking, parseTracking, parseTargets, loadResource } from '../skill-loader.js';
 import { runBatchWithToolCalling } from '../agent-runner.js';
 
-interface SubredditStatus {
+interface TargetStatus {
   name: string;
   todayComments: number;
   dailyLimit: number;
@@ -17,16 +17,16 @@ export async function runBatchMode(skillName: string): Promise<void> {
     // Pre-load skill to show status summary
     const skill = await loadSkill(skillName);
     
-    // Get subreddit configuration
-    const subredditsContent = await loadResource(skill, 'subreddits');
-    if (!subredditsContent) {
-      output.error('No subreddits.md found');
+    // Get target configuration
+    const targetsContent = await loadResource(skill, 'targets');
+    if (!targetsContent) {
+      output.error('No targets.md found');
       return;
     }
 
-    const subreddits = parseSubreddits(subredditsContent);
-    if (subreddits.length === 0) {
-      output.error('No subreddits configured');
+    const targets = parseTargets(targetsContent);
+    if (targets.length === 0) {
+      output.error('No targets configured');
       return;
     }
 
@@ -34,15 +34,15 @@ export async function runBatchMode(skillName: string): Promise<void> {
     const trackingContent = await loadTracking(skill);
     const tracking = trackingContent ? parseTracking(trackingContent) : [];
 
-    // Calculate status for each subreddit
-    const statuses: SubredditStatus[] = subreddits.map(sub => {
-      const tracked = tracking.find(t => t.subreddit === sub.name);
+    // Calculate status for each target
+    const statuses: TargetStatus[] = targets.map(target => {
+      const tracked = tracking.find(t => t.target === target.name);
       const todayComments = tracked?.todayComments || 0;
       return {
-        name: sub.name,
+        name: target.name,
         todayComments,
-        dailyLimit: sub.dailyLimit,
-        remaining: Math.max(0, sub.dailyLimit - todayComments),
+        dailyLimit: target.dailyLimit,
+        remaining: Math.max(0, target.dailyLimit - todayComments),
       };
     });
 
@@ -61,8 +61,12 @@ export async function runBatchMode(skillName: string): Promise<void> {
     output.info(`Current quota: ${totalCompleted}/${totalDaily} (${totalRemaining} remaining)`);
     output.divider();
 
+    // Determine table header based on platform
+    const targetLabel = skill.platform === 'reddit' ? 'Subreddit' : 'Target';
+    const targetPrefix = skill.platform === 'reddit' ? 'r/' : '';
+    
     output.table(statuses.map(s => ({
-      Subreddit: `r/${s.name}`,
+      [targetLabel]: `${targetPrefix}${s.name}`,
       Today: s.todayComments,
       Limit: s.dailyLimit,
       Remaining: s.remaining,
@@ -73,7 +77,7 @@ export async function runBatchMode(skillName: string): Promise<void> {
     // Build tracking summary for the LLM
     const trackingSummary = statuses
       .filter(s => s.remaining > 0)
-      .map(s => `r/${s.name}: ${s.todayComments}/${s.dailyLimit} (${s.remaining} remaining)`)
+      .map(s => `${targetPrefix}${s.name}: ${s.todayComments}/${s.dailyLimit} (${s.remaining} remaining)`)
       .join('\n');
 
     // Run the agentic loop - LLM handles everything from here

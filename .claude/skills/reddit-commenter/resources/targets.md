@@ -8,7 +8,6 @@
 
 | Subreddit       | Subscribers | Daily Limit |
 | --------------- | ----------- | ----------- |
-| r/chatgptpro    | ~15K        | 3           |
 | r/nocode        | ~92K        | 3           |
 | r/openai        | ~1.75M      | 3           |
 | r/saas          | ~433K       | 3           |
@@ -23,16 +22,6 @@
 ---
 
 ## Subreddit-Specific Guides
-
-### r/chatgptpro
-
-| Item | Content |
-|------|---------|
-| **Core Community Rules** | -  ChatGPT Pro/Plus features only<br>-  No self-promo without value<br>-  Practical Pro workflows/tips |
-| **Community Nature** | -  Paid ChatGPT users (Pro/Team)<br>-  Advanced prompting/workflows<br>-  Power users solving real problems |
-| **Good Topics to Answer** | -  Advanced prompting techniques<br>-  Pro model differences (4o vs others)<br>-  Workflow automation with Pro |
-
-***
 
 ### r/nocode
 

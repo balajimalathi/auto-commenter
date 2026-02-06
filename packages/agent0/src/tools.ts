@@ -39,13 +39,13 @@ export function getToolDefinitions(): ToolDefinition[] {
       type: 'function',
       function: {
         name: 'read_file',
-        description: 'Read contents of a file. Use for skill instructions, tracking data, personalization, subreddit rules, product info, or memory. Paths are relative to project root. Resources are inside .claude/skills/<skill>/resources/.',
+        description: 'Read contents of a file. Use for skill instructions, tracking data, personalization, target rules, product info, or memory. Paths are relative to project root. Resources are inside .claude/skills/<skill>/resources/.',
         parameters: {
           type: 'object',
           properties: {
             path: {
               type: 'string',
-              description: 'Path relative to project root. Examples: .claude/skills/reddit-commenter/SKILL.md, .claude/skills/reddit-commenter/resources/subreddits.md, .claude/skills/reddit-commenter/resources/personalization_reddit.md, tracking/reddit/2026-02-05.md, .claude/skills/reddit-commenter/memory.md',
+              description: 'Path relative to project root. Examples: .claude/skills/reddit-commenter/SKILL.md, .claude/skills/reddit-commenter/resources/targets.md, .claude/skills/reddit-commenter/resources/personalization_reddit.md, tracking/reddit/2026-02-05.md, .claude/skills/reddit-commenter/memory.md, .claude/skills/twitter-commenter/resources/targets.md, .claude/skills/twitter-commenter/resources/personalization_twitter.md',
             },
           },
           required: ['path'],
@@ -104,7 +104,7 @@ export function getToolDefinitions(): ToolDefinition[] {
           properties: {
             path: {
               type: 'string',
-              description: 'Path relative to project root (e.g. .claude/skills, tracking/reddit)',
+              description: 'Path relative to project root (e.g. .claude/skills, tracking/reddit, tracking/twitter)',
             },
           },
           required: ['path'],

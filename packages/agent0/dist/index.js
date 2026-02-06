@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+var __glob = (map) => (path) => {
+  var fn = map[path];
+  if (fn) return fn();
+  throw new Error("Module not found in bundle: " + path);
+};
 
 // src/index.ts
 import { config } from "dotenv";
@@ -6,8 +11,9 @@ import { resolve } from "path";
 import { existsSync as existsSync4 } from "fs";
 
 // src/cli.ts
+import { createInterface } from "readline";
 import { Command } from "commander";
-import * as p2 from "@clack/prompts";
+import * as p from "@clack/prompts";
 
 // src/ui/output.ts
 import chalk from "chalk";
@@ -53,9 +59,9 @@ var output = {
   divider() {
     console.log(chalk.dim("\u2500".repeat(50)));
   },
-  comment(text3, title = "Proposed Comment") {
+  comment(text2, title = "Proposed Comment") {
     console.log(
-      boxen(text3, {
+      boxen(text2, {
         title,
         titleAlignment: "center",
         padding: 1,
@@ -269,25 +275,25 @@ async function loadTracking(skill) {
   }
   return null;
 }
-function parseSubreddits(subredditsContent) {
-  const subreddits = [];
-  const tableRegex = /\|\s*r\/(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
+function parseTargets(targetsContent) {
+  const targets = [];
+  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
   let match;
-  while ((match = tableRegex.exec(subredditsContent)) !== null) {
-    subreddits.push({
+  while ((match = tableRegex.exec(targetsContent)) !== null) {
+    targets.push({
       name: match[1],
       dailyLimit: parseInt(match[2], 10)
     });
   }
-  return subreddits;
+  return targets;
 }
 function parseTracking(trackingContent) {
   const activities = [];
-  const tableRegex = /\|\s*r\/(\w+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
+  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
   let match;
   while ((match = tableRegex.exec(trackingContent)) !== null) {
     activities.push({
-      subreddit: match[1],
+      target: match[1],
       todayComments: parseInt(match[2], 10),
       dailyLimit: parseInt(match[3], 10),
       lastComment: match[4].trim() === "-" ? null : match[4].trim()
@@ -321,9 +327,9 @@ async function readMemory(skill, lines = DEFAULT_MEMORY_LINES) {
 // src/ui/progress.ts
 import ora from "ora";
 import chalk3 from "chalk";
-function createSpinner(text3) {
+function createSpinner(text2) {
   const spinner = ora({
-    text: text3,
+    text: text2,
     spinner: "dots"
   });
   return {
@@ -414,11 +420,11 @@ async function callExecute(code, timeout = 3e4) {
   );
   const content = result.content;
   if (result.isError) {
-    const text4 = extractText(content);
-    return { text: text4, isError: true };
+    const text3 = extractText(content);
+    return { text: text3, isError: true };
   }
-  const text3 = extractText(content);
-  return { text: text3, isError: false };
+  const text2 = extractText(content);
+  return { text: text2, isError: false };
 }
 function extractText(content) {
   const list = content ?? [];
@@ -453,63 +459,6 @@ async function executeScript(code, timeout = 3e4) {
   return callExecute(code, timeout);
 }
 
-// src/ui/prompts.ts
-import * as p from "@clack/prompts";
-async function confirmWithTimeout(options) {
-  const { message, timeoutMs = 5e3, defaultValue = true } = options;
-  return new Promise((resolve2) => {
-    let resolved = false;
-    let countdown = Math.ceil(timeoutMs / 1e3);
-    const interval = setInterval(() => {
-      countdown--;
-      if (countdown > 0 && !resolved) {
-        process.stdout.write(
-          `\r${message} (auto-${defaultValue ? "approve" : "reject"} in ${countdown}s) [y/n] `
-        );
-      }
-    }, 1e3);
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        clearInterval(interval);
-        console.log(`
-${defaultValue ? "\u2713 Auto-approved" : "\u2717 Auto-rejected"}`);
-        resolve2(defaultValue);
-      }
-    }, timeoutMs);
-    process.stdout.write(
-      `${message} (auto-${defaultValue ? "approve" : "reject"} in ${countdown}s) [y/n] `
-    );
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-      process.stdin.once("data", (data) => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          clearInterval(interval);
-          process.stdin.setRawMode(false);
-          const key = data.toString().toLowerCase();
-          if (key === "y" || key === "\r" || key === "\n") {
-            console.log("\n\u2713 Approved");
-            resolve2(true);
-          } else if (key === "n") {
-            console.log("\n\u2717 Rejected");
-            resolve2(false);
-          } else if (key === "") {
-            console.log("\n");
-            process.exit(0);
-          } else {
-            console.log("\n\u2713 Approved");
-            resolve2(true);
-          }
-        }
-      });
-    } else {
-    }
-  });
-}
-
 // src/tools.ts
 function getToolDefinitions() {
   return [
@@ -517,13 +466,13 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "read_file",
-        description: "Read contents of a file. Use for skill instructions, tracking data, personalization, subreddit rules, product info, or memory. Paths are relative to project root. Resources are inside .claude/skills/<skill>/resources/.",
+        description: "Read contents of a file. Use for skill instructions, tracking data, personalization, target rules, product info, or memory. Paths are relative to project root. Resources are inside .claude/skills/<skill>/resources/.",
         parameters: {
           type: "object",
           properties: {
             path: {
               type: "string",
-              description: "Path relative to project root. Examples: .claude/skills/reddit-commenter/SKILL.md, .claude/skills/reddit-commenter/resources/subreddits.md, .claude/skills/reddit-commenter/resources/personalization_reddit.md, tracking/reddit/2026-02-05.md, .claude/skills/reddit-commenter/memory.md"
+              description: "Path relative to project root. Examples: .claude/skills/reddit-commenter/SKILL.md, .claude/skills/reddit-commenter/resources/targets.md, .claude/skills/reddit-commenter/resources/personalization_reddit.md, tracking/reddit/2026-02-05.md, .claude/skills/reddit-commenter/memory.md, .claude/skills/twitter-commenter/resources/targets.md, .claude/skills/twitter-commenter/resources/personalization_twitter.md"
             }
           },
           required: ["path"]
@@ -582,7 +531,7 @@ function getToolDefinitions() {
           properties: {
             path: {
               type: "string",
-              description: "Path relative to project root (e.g. .claude/skills, tracking/reddit)"
+              description: "Path relative to project root (e.g. .claude/skills, tracking/reddit, tracking/twitter)"
             }
           },
           required: ["path"]
@@ -607,35 +556,6 @@ function getToolDefinitions() {
             }
           },
           required: ["code"]
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "request_approval",
-        description: "Request human approval before posting a comment, reply, or post. REQUIRED before any content submission. Shows the content to the user and waits for approval (auto-approves after timeout).",
-        parameters: {
-          type: "object",
-          properties: {
-            content: {
-              type: "string",
-              description: "The content to be posted (comment text, reply text, or post body)"
-            },
-            content_type: {
-              type: "string",
-              description: 'Type of content: "comment", "reply", or "post"'
-            },
-            context: {
-              type: "string",
-              description: 'Context for the content (e.g., "r/chatgptpro - Post: How to use GPT-4" or "Reply to u/user123")'
-            },
-            title: {
-              type: "string",
-              description: 'Post title (only required for content_type="post")'
-            }
-          },
-          required: ["content", "content_type", "context"]
         }
       }
     }
@@ -701,39 +621,6 @@ async function executeTool(name, args, ctx) {
           return JSON.stringify({ error: result.text });
         }
         return result.text;
-      }
-      case "request_approval": {
-        const content = args.content;
-        const contentType = args.content_type;
-        const context = args.context;
-        const title = args.title;
-        const waitMs = parseInt(process.env.HUMAN_IN_LOOP_WAIT_MS || "5000", 10);
-        output.divider();
-        output.info(`Approval Request: ${contentType.toUpperCase()}`);
-        output.dim(context);
-        if (title) {
-          output.info(`Title: ${title}`);
-        }
-        if (contentType === "post" && title) {
-          output.post(title, content);
-        } else {
-          output.comment(content, contentType === "reply" ? "Proposed Reply" : "Proposed Comment");
-        }
-        const defaultApprove = contentType !== "post";
-        const approved = await confirmWithTimeout({
-          message: `Approve this ${contentType}?`,
-          timeoutMs: waitMs,
-          defaultValue: defaultApprove
-        });
-        if (approved) {
-          output.success(`${contentType} approved`);
-        } else {
-          output.warning(`${contentType} rejected`);
-        }
-        return JSON.stringify({
-          approved,
-          message: approved ? "Content approved for posting" : "Content rejected by user"
-        });
       }
       default:
         return JSON.stringify({ error: `Unknown tool: ${name}` });
@@ -837,8 +724,6 @@ function formatToolDetail(name, args) {
       return args.selector ? ` (${args.selector})` : "";
     case "browser_submit_reddit_comment":
       return " (posting comment)";
-    case "request_approval":
-      return args.content_type ? ` (${args.content_type})` : "";
     default:
       return "";
   }
@@ -952,7 +837,6 @@ async function runAgenticLoop(systemPrompt, userPrompt, options = {}) {
     if (anyToolFailed) {
       spinner?.warn(`Tools executed (with errors): ${toolNames}`);
     } else {
-      spinner?.succeed(`Tools executed: ${toolNames}`);
     }
     trimMessageContext(messages);
   }
@@ -960,15 +844,34 @@ async function runAgenticLoop(systemPrompt, userPrompt, options = {}) {
   return lastContent || "(Max iterations reached)";
 }
 
+// import("./**/*.js") in src/modes/instructions/index.ts
+var globImport_js = __glob({});
+
+// src/modes/instructions/index.ts
+async function loadPlatformInstructions(platform) {
+  try {
+    const module = await globImport_js(`./${platform}.js`);
+    const instructions = module[`${platform}Instructions`];
+    if (!instructions) {
+      throw new Error(`Platform instructions export not found: ${platform}Instructions`);
+    }
+    return instructions;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Platform instructions not found for: ${platform}. ${errorMessage}`);
+  }
+}
+
 // src/agent-runner.ts
-function buildSystemPrompt(skill, mode, skillContent, batchContent, memory, personalization, product, modeContext) {
+async function buildSystemPrompt(skill, mode, skillContent, batchContent, memory, personalization, product, playwriterSnippets, modeContext) {
   const baseToolsSection = `## Available Tools
 You have access to these tools. Use them to accomplish the task:
-- read_file: Read files (skill instructions, tracking, personalization, subreddit rules, memory)
+- read_file: Read files (skill instructions, tracking, personalization, target rules, memory)
 - write_file, append_file: Update tracking files, leads, memory
 - list_dir: Discover files
-- playwriter_execute: Execute Playwriter/Playwright JavaScript in the browser. Write full Playwright API code. Scope: page, state, context, accessibilitySnapshot, getCDPSession. Examples: await page.goto(url), await accessibilitySnapshot({ page }), await page.locator('aria-ref=e5').click()
-- request_approval: Request human approval before posting (required before any comment/post submission)`;
+- playwriter_execute: Execute Playwriter JavaScript in the browser. ALWAYS use the exact snippets from the "Playwriter Snippets" section below. Do NOT use accessibilitySnapshot. Use user-defined selectors (e.g. await page.click('comment-composer-host')). Scope: page, state, context.`;
+  const playwriterSnippetsSection = playwriterSnippets ? `## Playwriter Snippets (use these exact patterns)
+${playwriterSnippets}` : "";
   const projectStructure = `## Project Structure
 - Skills: .claude/skills/${skill.name}/
 - Tracking: tracking/${skill.platform}/YYYY-MM-DD.md
@@ -980,110 +883,33 @@ ${skillContent}`;
 ${memory}`;
   const personalizationSection = personalization ? `## Personalization Guide
 ${personalization}` : `## Personalization
-(Use read_file to load .claude/skills/${skill.name}/resources/personalization_reddit.md)`;
+(Use read_file to load .claude/skills/${skill.name}/resources/personalization_${skill.platform}.md)`;
   const productSection = product ? `## Product Info
 ${product}` : "";
+  const platformInstructions = await loadPlatformInstructions(skill.platform);
   let modeInstructions = "";
   switch (mode) {
     case "batch":
-      modeInstructions = `## Batch Mode Instructions
-${batchContent || "Fill today's quota according to the skill workflow."}
-
-Your task:
-1. Read today's tracking file (tracking/${skill.platform}/YYYY-MM-DD.md) to see current progress
-2. Identify subreddits that haven't reached their daily limit
-3. For each subreddit with remaining quota:
-   - Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/r/{subreddit}/new/')
-   - Use playwriter_execute to get posts or snapshot: await accessibilitySnapshot({ page }) or extract posts via page.evaluate
-   - Select a suitable post to comment on
-   - Navigate to the post URL via playwriter_execute
-   - Analyze the post content using playwriter_execute (page content or accessibilitySnapshot)
-   - Generate a helpful, natural comment following personalization guidelines
-   - IMPORTANT: Call request_approval with the proposed comment before posting
-   - If approved, use playwriter_execute to submit the comment (write a script that finds the composer, types, and clicks submit - Reddit uses Shadow DOM)
-   - Update tracking file with the new comment
-   - Update memory with the action
-4. Respect delays between comments (wait 2-5 minutes between comments)
-5. Continue until quota is filled or all subreddits are complete
-
-${modeContext?.trackingSummary ? `Current tracking summary:
-${modeContext.trackingSummary}` : ""}`;
+      modeInstructions = platformInstructions.batch(skill, batchContent, modeContext);
       break;
     case "commenter":
-      modeInstructions = `## Commenter Mode Instructions
-CRITICAL: Commenter writes COMMENTS on EXISTING posts. NEVER create a new post. Do NOT click "Create Post" or similar. You are replying to others' content, not publishing your own.
-
-Your task: Write comments on existing posts based on the user's instruction.
-
-Workflow for each comment:
-1. Parse the instruction: which subreddit (r/X), how many comments
-2. Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/r/{subreddit}/new/')
-3. Use playwriter_execute to scroll if needed: await page.evaluate(() => window.scrollBy(0, 500))
-4. Use playwriter_execute with accessibilitySnapshot or page.evaluate to get posts
-5. Select ONE post to comment on (pick one with good engagement potential)
-6. Use playwriter_execute to open the post (navigate to URL or click)
-7. On the post page: use playwriter_execute to read content (e.g. return await page.evaluate(() => document.body.innerText))
-8. Write a helpful, natural comment that replies to that specific post (following personalization guidelines)
-9. Call request_approval with content_type="comment" and your proposed comment text
-10. If approved: use playwriter_execute with a script that submits the comment (find composer, type, click submit - Reddit uses Shadow DOM)
-11. Update tracking and memory
-12. If more comments needed: go back to subreddit, scroll, pick another post, repeat`;
+      modeInstructions = platformInstructions.commenter(skill);
       break;
     case "notifications":
-      modeInstructions = `## Notifications Mode Instructions
-Your task: Check Reddit notifications and respond to any replies.
-
-Workflow:
-1. Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/message/inbox/')
-2. Use playwriter_execute to get page content: await accessibilitySnapshot({ page }) or page.evaluate for text
-3. Identify any replies to your comments that need responses
-4. For each reply that warrants a response:
-   - Read the context (original post, your comment, their reply)
-   - Generate a thoughtful, helpful response
-   - IMPORTANT: Call request_approval with the proposed reply before posting
-   - If approved, use playwriter_execute to navigate and submit the reply
-   - Update memory with the interaction
-5. Mark notifications as read if possible via playwriter_execute
-6. Report what notifications you handled`;
+      modeInstructions = platformInstructions.notifications(skill);
       break;
     case "trending":
-      modeInstructions = `## Trending Mode Instructions
-Your task: Find trending posts for inspiration or reposting opportunities.
-
-Workflow:
-1. Use playwriter_execute to navigate: await page.goto('https://www.reddit.com/r/{subreddit}/hot/') or /rising/
-2. Use playwriter_execute to get posts: accessibilitySnapshot or page.evaluate to extract post data
-3. For each interesting post:
-   - Note the title, engagement level, topic
-   - Analyze why it's trending (topic relevance, timing, format)
-4. Compile a summary of trending topics and post ideas
-5. Optionally save the summary to a file (trending_{subreddit}_{date}.md)
-6. Return the trending analysis to the user
-
-${modeContext?.subreddit ? `Target subreddit: r/${modeContext.subreddit}` : "Check multiple subreddits from the subreddits.md resource."}`;
+      modeInstructions = platformInstructions.trending(skill, modeContext);
       break;
     case "post":
-      modeInstructions = `## Post Mode Instructions
-Your task: Draft and publish a new post based on the user's instruction.
-
-Workflow:
-1. Parse the instruction to understand: which subreddit, what topic/content
-2. Read subreddit rules for the target subreddit
-3. Draft the post title and content following:
-   - Subreddit rules and culture
-   - Personalization guidelines
-   - The user's intent
-4. IMPORTANT: Call request_approval with the full draft (title + content) before posting
-5. If approved:
-   - Use playwriter_execute to navigate to the subreddit
-   - Use playwriter_execute to click "Create Post", fill title/content, and submit
-6. Update memory with the post details
-7. Report the post URL or any issues`;
+      modeInstructions = platformInstructions.post(skill);
       break;
   }
-  return `You are Agent0, an autonomous agent executing Reddit engagement tasks.
+  return `You are Agent0, an autonomous agent executing ${skill.platform} engagement tasks.
 
 ${baseToolsSection}
+
+${playwriterSnippetsSection}
 
 ${modeInstructions}
 
@@ -1098,14 +924,13 @@ ${productSection}
 ${projectStructure}
 
 ## Critical Rules
-1. ALWAYS call request_approval before posting any comment, reply, or post
-2. Follow the skill workflow and personalization guidelines exactly
-3. Update tracking after each action
-4. Log actions to memory
-5. Be autonomous - complete the full task without asking questions
-6. If something fails, log the error and try an alternative approach
-7. Report what you accomplished when done
-8. In commenter mode: ONLY write comments on existing posts. Open the post first, call request_approval, then use playwriter_execute to submit the comment.`;
+1. Follow the skill workflow and personalization guidelines exactly
+2. Update tracking after each action
+3. Log actions to memory
+4. Be autonomous - complete the full task without asking questions
+5. If something fails, log the error and try an alternative approach
+6. Report what you accomplished when done
+7. In commenter mode: ONLY write comments on existing posts. Open the post first, then use playwriter_execute to submit the comment.`;
 }
 async function runWithToolCalling(skillName, mode, userPrompt, modeContext) {
   output.header(`Agent0 ${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode`);
@@ -1115,9 +940,10 @@ async function runWithToolCalling(skillName, mode, userPrompt, modeContext) {
     const skillContent = skill.skillContent;
     const batchContent = skill.batchContent;
     const memory = await readMemory(skill);
-    const personalization = await loadResource(skill, "personalization_reddit");
+    const personalization = await loadResource(skill, `personalization_${skill.platform}`);
     const product = await loadResource(skill, "product");
-    const systemPrompt = buildSystemPrompt(
+    const playwriterSnippets = await loadResource(skill, "playwriter_snippets");
+    const systemPrompt = await buildSystemPrompt(
       skill,
       mode,
       skillContent,
@@ -1125,17 +951,18 @@ async function runWithToolCalling(skillName, mode, userPrompt, modeContext) {
       memory,
       personalization,
       product,
+      playwriterSnippets,
       modeContext
     );
     output.info(`Instruction: ${userPrompt}`);
     output.divider();
     await connectBrowser();
     const maxIterationsMap = {
-      commenter: 10,
+      commenter: 30,
       notifications: 10,
       trending: 8,
       post: 10,
-      batch: 20
+      batch: 250
     };
     const result = await runAgenticLoop(systemPrompt, userPrompt, {
       skill,
@@ -1156,10 +983,11 @@ async function runWithToolCalling(skillName, mode, userPrompt, modeContext) {
 }
 async function runBatchWithToolCalling(skillName, trackingSummary) {
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const skill = await loadSkill(skillName);
   return runWithToolCalling(
     skillName,
     "batch",
-    `Fill today's quota according to BATCH.md. Check tracking/reddit/${today}.md for current status.`,
+    `Fill today's quota according to BATCH.md. Check tracking/${skill.platform}/${today}.md for current status.`,
     { trackingSummary }
   );
 }
@@ -1167,15 +995,19 @@ async function runCommenterWithToolCalling(skillName, instruction) {
   return runWithToolCalling(skillName, "commenter", instruction);
 }
 async function runNotificationsWithToolCalling(skillName) {
+  const skill = await loadSkill(skillName);
+  const platformLabel = skill.platform === "reddit" ? "Reddit" : skill.platform === "twitter" ? "X/Twitter" : skill.platform;
   return runWithToolCalling(
     skillName,
     "notifications",
-    "Check Reddit notifications and respond to any replies that need attention."
+    `Check ${platformLabel} notifications and respond to any replies that need attention.`
   );
 }
-async function runTrendingWithToolCalling(skillName, subreddit) {
-  const prompt = subreddit ? `Find trending posts in r/${subreddit} and analyze what's popular.` : "Find trending posts across configured subreddits and compile a summary.";
-  return runWithToolCalling(skillName, "trending", prompt, { subreddit });
+async function runTrendingWithToolCalling(skillName, target) {
+  const skill = await loadSkill(skillName);
+  const platformLabel = skill.platform === "reddit" ? "posts" : skill.platform === "twitter" ? "tweets" : "content";
+  const prompt = target ? `Find trending ${platformLabel} in ${skill.platform === "reddit" ? `r/${target}` : target} and analyze what's popular.` : `Find trending content across configured targets and compile a summary.`;
+  return runWithToolCalling(skillName, "trending", prompt, { target });
 }
 async function runPostWithToolCalling(skillName, content) {
   return runWithToolCalling(skillName, "post", `Write and post: ${content}`);
@@ -1185,26 +1017,26 @@ async function runPostWithToolCalling(skillName, content) {
 async function runBatchMode(skillName) {
   try {
     const skill = await loadSkill(skillName);
-    const subredditsContent = await loadResource(skill, "subreddits");
-    if (!subredditsContent) {
-      output.error("No subreddits.md found");
+    const targetsContent = await loadResource(skill, "targets");
+    if (!targetsContent) {
+      output.error("No targets.md found");
       return;
     }
-    const subreddits = parseSubreddits(subredditsContent);
-    if (subreddits.length === 0) {
-      output.error("No subreddits configured");
+    const targets = parseTargets(targetsContent);
+    if (targets.length === 0) {
+      output.error("No targets configured");
       return;
     }
     const trackingContent = await loadTracking(skill);
     const tracking = trackingContent ? parseTracking(trackingContent) : [];
-    const statuses = subreddits.map((sub) => {
-      const tracked = tracking.find((t) => t.subreddit === sub.name);
+    const statuses = targets.map((target) => {
+      const tracked = tracking.find((t) => t.target === target.name);
       const todayComments = tracked?.todayComments || 0;
       return {
-        name: sub.name,
+        name: target.name,
         todayComments,
-        dailyLimit: sub.dailyLimit,
-        remaining: Math.max(0, sub.dailyLimit - todayComments)
+        dailyLimit: target.dailyLimit,
+        remaining: Math.max(0, target.dailyLimit - todayComments)
       };
     });
     const totalRemaining = statuses.reduce((sum, s) => sum + s.remaining, 0);
@@ -1217,14 +1049,16 @@ async function runBatchMode(skillName) {
     output.divider();
     output.info(`Current quota: ${totalCompleted}/${totalDaily} (${totalRemaining} remaining)`);
     output.divider();
+    const targetLabel = skill.platform === "reddit" ? "Subreddit" : "Target";
+    const targetPrefix = skill.platform === "reddit" ? "r/" : "";
     output.table(statuses.map((s) => ({
-      Subreddit: `r/${s.name}`,
+      [targetLabel]: `${targetPrefix}${s.name}`,
       Today: s.todayComments,
       Limit: s.dailyLimit,
       Remaining: s.remaining
     })));
     output.divider();
-    const trackingSummary = statuses.filter((s) => s.remaining > 0).map((s) => `r/${s.name}: ${s.todayComments}/${s.dailyLimit} (${s.remaining} remaining)`).join("\n");
+    const trackingSummary = statuses.filter((s) => s.remaining > 0).map((s) => `${targetPrefix}${s.name}: ${s.todayComments}/${s.dailyLimit} (${s.remaining} remaining)`).join("\n");
     await runBatchWithToolCalling(skillName, trackingSummary);
   } catch (error) {
     output.error(`Batch mode failed: ${error}`);
@@ -1234,8 +1068,8 @@ async function runBatchMode(skillName) {
 // src/modes/commenter.ts
 function parseInstruction(instruction) {
   const subredditMatch = instruction.match(/r\/(\w+)/i);
-  const subreddit = subredditMatch ? subredditMatch[1] : "";
-  const countMatch = instruction.match(/(\d+)\s*comments?/i);
+  const target = subredditMatch ? subredditMatch[1] : "";
+  const countMatch = instruction.match(/(\d+)\s*(?:comments?|replies?)/i);
   const oneMatch = instruction.match(/\bone\b/i);
   let count = 1;
   if (countMatch) {
@@ -1243,17 +1077,20 @@ function parseInstruction(instruction) {
   } else if (oneMatch) {
     count = 1;
   }
-  return { subreddit, count };
+  return { target, count };
 }
 async function runCommenterMode(skillName, instruction) {
-  const { subreddit, count } = parseInstruction(instruction);
-  if (!subreddit) {
-    output.error("Could not parse subreddit from instruction");
-    output.info('Example: "Post 3 comments on r/chatgptpro"');
+  const { target, count } = parseInstruction(instruction);
+  if (!target) {
+    output.error("Could not parse target from instruction");
+    output.info('Example: "Post 3 comments on r/chatgptpro" or "Write one reply on For you"');
     return;
   }
-  output.info(`Target: r/${subreddit}`);
-  output.info(`Comments to post: ${count}`);
+  const isSubreddit = instruction.toLowerCase().includes("r/");
+  const targetLabel = isSubreddit ? `r/${target}` : target;
+  const actionLabel = isSubreddit ? "Comments" : "Replies";
+  output.info(`Target: ${targetLabel}`);
+  output.info(`${actionLabel} to post: ${count}`);
   try {
     await runCommenterWithToolCalling(skillName, instruction);
   } catch (error) {
@@ -1263,7 +1100,7 @@ async function runCommenterMode(skillName, instruction) {
 
 // src/modes/notifications.ts
 async function runNotificationsMode(skillName) {
-  output.info("Checking Reddit notifications...");
+  output.info("Checking notifications...");
   try {
     await runNotificationsWithToolCalling(skillName);
   } catch (error) {
@@ -1272,14 +1109,16 @@ async function runNotificationsMode(skillName) {
 }
 
 // src/modes/trending.ts
-async function runTrendingMode(skillName, targetSubreddit) {
-  if (targetSubreddit) {
-    output.info(`Finding trending posts in r/${targetSubreddit}...`);
+async function runTrendingMode(skillName, target) {
+  if (target) {
+    const isSubreddit = target.toLowerCase().startsWith("r/") || !target.includes(" ");
+    const targetLabel = isSubreddit ? `r/${target.replace("r/", "")}` : target;
+    output.info(`Finding trending content in ${targetLabel}...`);
   } else {
-    output.info("Finding trending posts across configured subreddits...");
+    output.info("Finding trending content across configured targets...");
   }
   try {
-    await runTrendingWithToolCalling(skillName, targetSubreddit);
+    await runTrendingWithToolCalling(skillName, target);
   } catch (error) {
     output.error(`Trending mode failed: ${error}`);
   }
@@ -1314,8 +1153,8 @@ function createCLI() {
   program.command("notifications").alias("notif").description("Check and interact with notifications").option("-s, --skill <name>", "Skill to use", "reddit-commenter").action(async (options) => {
     await runWithSkillSelection(options.skill, "notifications");
   });
-  program.command("trending").description("Find trending posts for inspiration").option("-s, --skill <name>", "Skill to use", "reddit-commenter").option("-r, --subreddit <name>", "Specific subreddit to check").action(async (options) => {
-    await runWithSkillSelection(options.skill, "trending", options.subreddit);
+  program.command("trending").description("Find trending posts for inspiration").option("-s, --skill <name>", "Skill to use", "reddit-commenter").option("-t, --target <name>", "Specific target to check (subreddit or timeline tab)").action(async (options) => {
+    await runWithSkillSelection(options.skill, "trending", options.target);
   });
   program.command("post [content]").description("Write and post content").option("-s, --skill <name>", "Skill to use", "reddit-commenter").action(async (content, options) => {
     const finalContent = content || await promptForInstruction("post");
@@ -1331,7 +1170,7 @@ async function promptForInstruction(type) {
     comment: "Post 3 comments on r/chatgptpro",
     post: "Write a post about..."
   };
-  const result = await p2.text({
+  const result = await p.text({
     message: `Enter ${type} instruction:`,
     placeholder: placeholders[type] ?? "Enter instruction...",
     validate: (value) => {
@@ -1339,8 +1178,8 @@ async function promptForInstruction(type) {
       return void 0;
     }
   });
-  if (p2.isCancel(result)) {
-    p2.cancel("Operation cancelled.");
+  if (p.isCancel(result)) {
+    p.cancel("Operation cancelled.");
     process.exit(0);
   }
   return result;
@@ -1354,12 +1193,12 @@ async function runWithSkillSelection(skillName, mode, instruction) {
   }
   if (!skills.includes(skillName)) {
     output.warning(`Skill "${skillName}" not found.`);
-    const selected = await p2.select({
+    const selected = await p.select({
       message: "Select a skill:",
       options: skills.map((s) => ({ value: s, label: s }))
     });
-    if (p2.isCancel(selected)) {
-      p2.cancel("Operation cancelled.");
+    if (p.isCancel(selected)) {
+      p.cancel("Operation cancelled.");
       process.exit(0);
     }
     skillName = selected;
@@ -1393,35 +1232,72 @@ async function runInteractiveMode() {
     output.error("No skills found in .claude/skills/");
     process.exit(1);
   }
-  const skill = await p2.select({
-    message: "Select a skill:",
-    options: skills.map((s) => ({ value: s, label: s }))
+  while (true) {
+    const skill = await p.select({
+      message: "Select a skill:",
+      options: skills.map((s) => ({ value: s, label: s }))
+    });
+    if (p.isCancel(skill)) {
+      p.cancel("Operation cancelled.");
+      process.exit(0);
+    }
+    const mode = await p.select({
+      message: "Select a mode:",
+      options: [
+        { value: "batch", label: "Batch Mode", hint: "Fill daily quota" },
+        { value: "commenter", label: "Comment", hint: "Post specific comments" },
+        { value: "notifications", label: "Notifications", hint: "Check and respond" },
+        { value: "trending", label: "Trending", hint: "Find trending posts" },
+        { value: "post", label: "Post", hint: "Write and publish content" }
+      ]
+    });
+    if (p.isCancel(mode)) {
+      p.cancel("Operation cancelled.");
+      process.exit(0);
+    }
+    let instruction;
+    if (mode === "commenter") {
+      instruction = await promptForInstruction("comment");
+    } else if (mode === "post") {
+      instruction = await promptForInstruction("post");
+    }
+    await runWithSkillSelection(skill, mode, instruction);
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(false);
+      process.stdin.resume();
+      process.stdin.removeAllListeners("data");
+    }
+    process.stdout.write("\n");
+    const runAgain = await promptRunAnotherTask();
+    if (runAgain === null) {
+      process.exit(0);
+    }
+    if (!runAgain) {
+      break;
+    }
+  }
+}
+function promptRunAnotherTask() {
+  return new Promise((resolve2) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const onSigInt = () => {
+      rl.close();
+      process.removeListener("SIGINT", onSigInt);
+      process.stdout.write("\n");
+      resolve2(null);
+    };
+    process.on("SIGINT", onSigInt);
+    rl.question("Run another task? (y/n): ", (answer) => {
+      process.removeListener("SIGINT", onSigInt);
+      rl.close();
+      const trimmed = answer.trim().toLowerCase();
+      if (trimmed === "y" || trimmed === "yes") {
+        resolve2(true);
+      } else {
+        resolve2(false);
+      }
+    });
   });
-  if (p2.isCancel(skill)) {
-    p2.cancel("Operation cancelled.");
-    process.exit(0);
-  }
-  const mode = await p2.select({
-    message: "Select a mode:",
-    options: [
-      { value: "batch", label: "Batch Mode", hint: "Fill daily quota" },
-      { value: "commenter", label: "Comment", hint: "Post specific comments" },
-      { value: "notifications", label: "Notifications", hint: "Check and respond" },
-      { value: "trending", label: "Trending", hint: "Find trending posts" },
-      { value: "post", label: "Post", hint: "Write and publish content" }
-    ]
-  });
-  if (p2.isCancel(mode)) {
-    p2.cancel("Operation cancelled.");
-    process.exit(0);
-  }
-  let instruction;
-  if (mode === "commenter") {
-    instruction = await promptForInstruction("comment");
-  } else if (mode === "post") {
-    instruction = await promptForInstruction("post");
-  }
-  await runWithSkillSelection(skill, mode, instruction);
 }
 
 // src/index.ts
