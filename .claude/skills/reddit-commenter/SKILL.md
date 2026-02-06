@@ -16,7 +16,6 @@ This skill runs inside **Agent0** and uses:
 
 - Agent0 file tools (`read_file`, `write_file`, `append_file`, `list_dir`) for tracking, personalization, and leads
 - `playwriter_execute` to run Playwright code in the browser using pre-defined snippets
-- `request_approval` to get human approval before posting any comment
 
 ### Browser Automation (Playwriter)
 
@@ -51,7 +50,7 @@ Browser interaction is handled through `playwriter_execute` and the **Playwriter
    - Prioritize subreddits with no activity today or under limit
    - Prioritize subreddits with oldest last activity time
 
-4. Check subreddit specifics in resources/subreddits.md:
+4. Check subreddit specifics in resources/targets.md:
    - Core community rules
    - Community nature
    - Good topics to answer
@@ -221,7 +220,7 @@ Update tracking/reddit/[today's-date].md file:
 
 | File | Reference Timing |
 |------|------------------|
-| `resources/subreddits.md` | Step 1 (subreddit selection) |
+| `resources/targets.md` | Step 1 (subreddit selection) |
 | `resources/personalization_reddit.md` | Step 5 (review) |
 | `resources/product.md` | Step 7 (potential customer judgment) |
 | `leads/reddit.md` | Step 7 (lead criteria check) |
