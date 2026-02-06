@@ -210,6 +210,50 @@ class Logger {
       },
     });
   }
+
+  /**
+   * Log playwriter_execute errors to dedicated error log file
+   */
+  logPlaywriterError(options: {
+    code: string;
+    error: string;
+    timeout?: number;
+    durationMs: number;
+    skill?: string;
+    context?: string;
+  }): void {
+    if (!this.initialized) {
+      return;
+    }
+
+    const root = getProjectRoot();
+    const logsDir = join(root, 'logs');
+    
+    if (!existsSync(logsDir)) {
+      mkdirSync(logsDir, { recursive: true });
+    }
+
+    // Create daily error log file: playwriter-errors-YYYY-MM-DD.log
+    const today = new Date().toISOString().split('T')[0];
+    const errorLogFile = join(logsDir, `playwriter-errors-${today}.log`);
+
+    const entry = {
+      timestamp: new Date().toISOString(),
+      skill: options.skill || 'unknown',
+      context: options.context || 'unknown',
+      timeout: options.timeout || 30000,
+      duration_ms: options.durationMs,
+      code: options.code,
+      error: options.error,
+    };
+
+    // Write as JSON Lines format (one JSON object per line)
+    const line = JSON.stringify(entry) + '\n';
+    appendFile(errorLogFile, line, 'utf-8').catch((error) => {
+      // Silently fail - don't break execution if logging fails
+      console.error('Playwriter error logging failed:', error);
+    });
+  }
 }
 
 // Singleton instance
@@ -270,4 +314,18 @@ export function logToolResult(name: string, result: string, durationMs: number, 
  */
 export function logIteration(iteration: number, maxIterations: number, hasToolCalls: boolean): void {
   logger.logIteration(iteration, maxIterations, hasToolCalls);
+}
+
+/**
+ * Log playwriter_execute error to dedicated error log
+ */
+export function logPlaywriterError(options: {
+  code: string;
+  error: string;
+  timeout?: number;
+  durationMs: number;
+  skill?: string;
+  context?: string;
+}): void {
+  logger.logPlaywriterError(options);
 }

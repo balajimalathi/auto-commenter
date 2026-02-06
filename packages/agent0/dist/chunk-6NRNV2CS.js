@@ -8,7 +8,8 @@ var __glob = (map) => (path) => {
 import { select, input, confirm } from "@inquirer/prompts";
 
 // src/skill-loader.ts
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, writeFile } from "fs/promises";
+import { mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { existsSync } from "fs";
 var SKILLS_DIR = ".claude/skills";
@@ -112,17 +113,29 @@ async function loadTracking(skill) {
   }
   const templatePath = join(skill.trackingPath, "template.md");
   if (existsSync(templatePath)) {
-    return await readFile(templatePath, "utf-8");
+    let templateContent = await readFile(templatePath, "utf-8");
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    templateContent = templateContent.replace(/\[YYYY-MM-DD\]/g, today);
+    const trackingDir = skill.trackingPath;
+    if (!existsSync(trackingDir)) {
+      mkdirSync(trackingDir, { recursive: true });
+    }
+    await writeFile(trackingFile, templateContent, "utf-8");
+    return templateContent;
   }
   return null;
 }
 function parseTargets(targetsContent) {
   const targets = [];
-  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
+  const tableRegex = /\|\s*(?:r\/)?([^|]+?)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
   let match;
   while ((match = tableRegex.exec(targetsContent)) !== null) {
+    const name = match[1].trim();
+    if (name.toLowerCase() === "target" || name.toLowerCase() === "subreddit" || name.toLowerCase() === "tab") {
+      continue;
+    }
     targets.push({
-      name: match[1],
+      name,
       dailyLimit: parseInt(match[2], 10)
     });
   }
@@ -130,14 +143,22 @@ function parseTargets(targetsContent) {
 }
 function parseTracking(trackingContent) {
   const activities = [];
-  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
+  const tableRegex = /\|\s*(?:r\/)?([^|]+?)\s*\|\s*(\d+)(?:\/(\d+))?\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
   let match;
   while ((match = tableRegex.exec(trackingContent)) !== null) {
+    const target = match[1].trim();
+    const lowerTarget = target.toLowerCase();
+    if (lowerTarget === "target" || lowerTarget === "subreddit" || lowerTarget === "tab" || lowerTarget.includes("\u2500\u2500") || lowerTarget === "") {
+      continue;
+    }
+    const todayComments = parseInt(match[2], 10);
+    const dailyLimit = parseInt(match[4], 10);
+    const lastActivity = match[5].trim();
     activities.push({
-      target: match[1],
-      todayComments: parseInt(match[2], 10),
-      dailyLimit: parseInt(match[3], 10),
-      lastComment: match[4].trim() === "-" ? null : match[4].trim()
+      target,
+      todayComments,
+      dailyLimit,
+      lastComment: lastActivity === "-" || lastActivity === "" ? null : lastActivity
     });
   }
   return activities;

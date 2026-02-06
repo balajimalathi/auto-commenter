@@ -1,10 +1,11 @@
 import { readFile, writeFile, appendFile, readdir } from 'fs/promises';
+import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import * as browser from './browser.js';
 import type { Skill } from './skill-loader.js';
 import { output } from './ui/output.js';
-import { logToolCall, logToolResult } from './logger.js';
+import { logToolCall, logToolResult, logPlaywriterError } from './logger.js';
 
 export type ToolContext = {
   skill?: Skill;
@@ -162,6 +163,36 @@ export async function executeTool(
           result = JSON.stringify({ error: 'Path outside project root' });
           break;
         }
+        
+        // If file doesn't exist and it's a tracking file, try to create from template
+        if (!existsSync(fullPath) && path.startsWith('tracking/')) {
+          const pathParts = path.split('/');
+          if (pathParts.length === 3 && pathParts[2].match(/^\d{4}-\d{2}-\d{2}\.md$/)) {
+            // It's a tracking file with date format: tracking/{platform}/YYYY-MM-DD.md
+            const platform = pathParts[1];
+            const templatePath = join(root, 'tracking', platform, 'template.md');
+            
+            if (existsSync(templatePath)) {
+              let templateContent = await readFile(templatePath, 'utf-8');
+              
+              // Replace date placeholder with today's date
+              const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+              templateContent = templateContent.replace(/\[YYYY-MM-DD\]/g, today);
+              
+              // Ensure tracking directory exists
+              const trackingDir = join(root, 'tracking', platform);
+              if (!existsSync(trackingDir)) {
+                mkdirSync(trackingDir, { recursive: true });
+              }
+              
+              // Create the tracking file
+              await writeFile(fullPath, templateContent, 'utf-8');
+              result = templateContent;
+              break;
+            }
+          }
+        }
+        
         if (!existsSync(fullPath)) {
           result = JSON.stringify({ error: `File not found: ${path}` });
           break;
@@ -222,7 +253,19 @@ export async function executeTool(
         const timeout = (args.timeout as number) ?? 30000;
         const browserResult = await browser.executeScript(code, timeout);
         if (browserResult.isError) {
-          result = JSON.stringify({ error: browserResult.text });
+          const errorMessage = browserResult.text;
+          result = JSON.stringify({ error: errorMessage });
+          
+          // Log to dedicated playwriter error log
+          const durationMs = Date.now() - startTime;
+          logPlaywriterError({
+            code,
+            error: errorMessage,
+            timeout,
+            durationMs,
+            skill: ctx.skill?.name,
+            context: ctx.skill ? `${ctx.skill.platform}-commenter` : undefined,
+          });
         } else {
           result = browserResult.text;
         }
@@ -256,6 +299,20 @@ export async function executeTool(
     output.error(`Tool "${name}" failed: ${message}`);
     
     const errorResult = JSON.stringify({ error: message });
+    
+    // If playwriter_execute failed, log to dedicated error log
+    if (name === 'playwriter_execute') {
+      const code = (args.code as string) || '';
+      const timeout = (args.timeout as number) ?? 30000;
+      logPlaywriterError({
+        code,
+        error: message,
+        timeout,
+        durationMs,
+        skill: ctx.skill?.name,
+        context: ctx.skill ? `${ctx.skill.platform}-commenter` : undefined,
+      });
+    }
     
     // Log tool result with error
     logToolResult(name, errorResult, durationMs, message);

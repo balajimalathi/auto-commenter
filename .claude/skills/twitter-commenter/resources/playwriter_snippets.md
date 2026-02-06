@@ -8,51 +8,85 @@ Exact working patterns for `playwriter_execute` when automating X/Twitter.
 ```javascript
 // Navigate to the home timeline
 await page.goto('https://x.com/home');
-
-// Navigate to a hashtag search (latest)
-await page.goto('https://x.com/search?q=%23nocode&src=typed_query&f=live');
-
-// Navigate to a user's profile/timeline
-await page.goto('https://x.com/OpenAI');
+await new Promise(r => setTimeout(r, 3000));
 
 // Navigate to a specific tweet
 await page.goto('https://x.com/username/status/1234567890');
+await new Promise(r => setTimeout(r, 3000));
+
+// Navigate back to home timeline after posting a reply (for batch mode)
+// Use this after posting a reply on a /status/ page to continue with next tweet
+await page.goto('https://x.com/home');
+await new Promise(r => setTimeout(r, 3000));
+// Note: The previously selected tab and "Recency" filter should still be active
+// If not, re-click the tab and re-apply the "Recency" filter before extracting next tweets
 ```
 
 ## Home Timeline Tabs (For you / Following / Build in Public / Fail in Public / Smol)
 
+**CRITICAL:** Always filter to "Recency" after clicking any tab to ensure you get the most recent tweets.
+
+### Standard Pattern: Click Tab + Filter to Recency
+
 ```javascript
 // Assumes you are already on https://x.com/home
+// This pattern applies to ALL tabs - always filter to "Recency" after clicking
 
-// Click the "For you" tab
-await page.getByRole('tab', { name: 'For you' }).click();
-await new Promise(r => setTimeout(r, 2000));
+// 1) Click the tab
+await page.getByRole('tab', { name: 'Tab Name Here' }).click();
+await new Promise(r => setTimeout(r, 3000));
 
-// Click the "Following" tab
-await page.getByRole('tab', { name: 'Following' }).click();
-await new Promise(r => setTimeout(r, 2000));
+// 2) Open the tab's filter menu by clicking the SVG icon
+await page.getByRole('tab', { name: 'Tab Name Here' }).locator('svg').click();
+await new Promise(r => setTimeout(r, 3000));
 
-// Click the "Build in Public" tab
-await page.getByRole('tab', { name: 'Build in Public' }).click();
-await new Promise(r => setTimeout(r, 2000));
-
-// Click the "Fail in Public" tab
-await page.getByRole('tab', { name: 'Fail in Public' }).click();
-await new Promise(r => setTimeout(r, 2000));
-
-// Click the "Smol" tab
-await page.getByRole('tab', { name: 'Smol' }).click();
-await new Promise(r => setTimeout(r, 2000));
+// 3) Select "Recency" from the menu
+await page.getByRole('menuitem', { name: 'Recency' }).click();
+await new Promise(r => setTimeout(r, 3000));
 ```
 
-### Optional: Show Recent Tweets for Following
+### Complete Examples for Each Tab
 
 ```javascript
-// From the "Following" tab, open the tab menu and select "Recent"
+// For you tab
+await page.getByRole('tab', { name: 'For you' }).click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('tab', { name: 'For you' }).locator('svg').click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('menuitem', { name: 'Recency' }).click();
+await new Promise(r => setTimeout(r, 3000));
+
+// Following tab
+await page.getByRole('tab', { name: 'Following' }).click();
+await new Promise(r => setTimeout(r, 3000));
 await page.getByRole('tab', { name: 'Following' }).locator('svg').click();
-await new Promise(r => setTimeout(r, 1000));
-await page.getByRole('menuitem', { name: 'Recent' }).click();
-await new Promise(r => setTimeout(r, 2000));
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('menuitem', { name: 'Recency' }).click();
+await new Promise(r => setTimeout(r, 3000));
+
+// Build in Public tab
+await page.getByRole('tab', { name: 'Build in Public' }).click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('tab', { name: 'Build in Public' }).locator('svg').click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('menuitem', { name: 'Recency' }).click();
+await new Promise(r => setTimeout(r, 3000));
+
+// Fail in Public tab
+await page.getByRole('tab', { name: 'Fail in Public' }).click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('tab', { name: 'Fail in Public' }).locator('svg').click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('menuitem', { name: 'Recency' }).click();
+await new Promise(r => setTimeout(r, 3000));
+
+// Smol tab
+await page.getByRole('tab', { name: 'Smol' }).click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('tab', { name: 'Smol' }).locator('svg').click();
+await new Promise(r => setTimeout(r, 3000));
+await page.getByRole('menuitem', { name: 'Recency' }).click();
+await new Promise(r => setTimeout(r, 3000));
 ```
 
 ## Get Page Text
@@ -70,8 +104,13 @@ await page.evaluate((px) => window.scrollBy(0, px), 500);
 return page.url();
 ```
 
-## Extract Tweets
+## Extract Tweets (Top 10)
+
+**CRITICAL:** Always extract only the top 10 tweets after filtering to "Recency". This ensures you're responding to the most recent content.
+
 ```javascript
+// Extract the top 10 tweets from the current timeline
+// Use this AFTER clicking a tab and filtering to "Recent"
 const tweets = await page.evaluate(() => {
   const result = [];
   document.querySelectorAll('article[data-testid="tweet"]').forEach((tweet) => {
@@ -88,54 +127,71 @@ const tweets = await page.evaluate(() => {
       });
     }
   });
+  // Always limit to top 10 tweets
   return JSON.stringify(result.slice(0, 10));
 });
 return tweets;
 ```
 
-## X/Twitter Reply Submission (timeline reply flow – recommended)
+## X/Twitter Reply Submission (status page flow – recommended)
+
+**CRITICAL:** Do NOT click the reply button (it opens a popup). Instead, navigate to the status page and click the textarea directly.
 
 Execute these steps in sequence. **Always wait a bit after each click** so the UI can respond.
 
-```javascript
-// 1) Click the reply button on the chosen tweet in the timeline
-// Example using an accessible name like "282 Replies. Reply"
-await page.getByRole('button', { name: /Replies\. Reply$/ }).first().click();
-await new Promise(r => setTimeout(r, 2000));
-
-// 2) Focus the reply textbox ("Post text")
-await page.getByRole('textbox', { name: 'Post text' }).click();
-await new Promise(r => setTimeout(r, 1000));
-
-// 3) Fill the reply text (replace with actual reply content)
-await page.getByRole('textbox', { name: 'Post text' }).fill('Yes');
-
-// 4) Click the tweet/reply button
-await page.getByTestId('tweetButton').click();
-await new Promise(r => setTimeout(r, 2000));
-```
-
-### Alternative reply flow (generic selectors)
+### Method 1: Click post to navigate to status page, then click textarea directly
 
 ```javascript
-// 1) Click the first generic reply button
-await page.locator('[data-testid="reply"]').first().click();
-await new Promise(r => setTimeout(r, 2000));
+// 1) Click on the tweet text to navigate to the /status page
+// This opens the tweet's detail page instead of a popup
+await page.getByRole('article').getByTestId('tweetText').first().click();
+await new Promise(r => setTimeout(r, 3000));
 
-// 2) Wait for the reply composer to appear
-await page.waitForSelector('[data-testid="tweetTextarea_0"]');
+// 2) Wait for navigation to status page (URL should contain /status/)
+await page.waitForURL(/\/status\//);
+await new Promise(r => setTimeout(r, 3000));
 
-// 3) Click the reply text area to focus it
-await page.locator('[data-testid="tweetTextarea_0"]').click();
-await new Promise(r => setTimeout(r, 1000));
+// 3) Click directly on the textarea (NOT the reply button - that opens popup)
+await page.getByTestId('tweetTextarea_0').locator('div').nth(3).click();
+await new Promise(r => setTimeout(r, 3000));
 
 // 4) Type the reply (with human-like delay)
 await page.keyboard.type('Your reply text here', { delay: 25 });
+await new Promise(r => setTimeout(r, 500));
 
-// 5) Click the inline reply/post button
-await page.locator('[data-testid="tweetButtonInline"]').click();
-await new Promise(r => setTimeout(r, 2000));
+// 5) Click the reply/post button (use tweetButtonInline for status page)
+await page.getByTestId('tweetButtonInline').click();
+await new Promise(r => setTimeout(r, 3000));
 ```
+
+### Method 2: Navigate directly to status URL, then click textarea
+
+```javascript
+// 1) Navigate directly to the tweet's status page
+// URL format: https://x.com/username/status/1234567890
+await page.goto('https://x.com/username/status/1234567890');
+await new Promise(r => setTimeout(r, 3000));
+
+// 2) Click directly on the textarea (NOT the reply button)
+await page.getByTestId('tweetTextarea_0').locator('div').nth(3).click();
+await new Promise(r => setTimeout(r, 3000));
+
+// 3) Type the reply (with human-like delay)
+await page.keyboard.type('Your reply text here', { delay: 25 });
+await new Promise(r => setTimeout(r, 500));
+
+// 4) Click the reply/post button (use tweetButtonInline for status page)
+await page.getByTestId('tweetButtonInline').click();
+await new Promise(r => setTimeout(r, 3000));
+```
+
+### ⚠️ Important Notes
+
+- **Never click the reply button** - it opens a popup modal that breaks the flow
+- **Always navigate to /status page first** - either by clicking the tweet or going directly to the URL
+- **Click the textarea directly** - use `getByTestId('tweetTextarea_0').locator('div').nth(3).click()`
+- **Use correct button selector** - On status page, use `tweetButtonInline` (NOT `tweetButton`)
+- **Wait between actions** - Twitter's UI needs time to respond to each interaction
 
 ## Check if Logged In
 ```javascript

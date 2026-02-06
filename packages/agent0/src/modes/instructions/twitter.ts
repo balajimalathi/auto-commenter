@@ -13,7 +13,8 @@ Your task:
 3. For each target with remaining quota:
    - Use playwriter_execute with Navigation snippet: await page.goto('https://x.com/home', ...)
    - Use playwriter_execute with timeline-tab snippets to click the selected tab (For you, Following, Build in Public, Fail in Public, or Smol)
-   - Use playwriter_execute with Extract Tweets snippet to get tweets from the timeline
+   - ⚠️ CRITICAL: ALWAYS filter to "Recency" after clicking the tab: click the tab's SVG icon, then select "Recency" from the menu
+   - Use playwriter_execute with Extract Tweets snippet to get the top 10 tweets from the filtered timeline
    - Select a suitable tweet to reply to (check tracking to avoid duplicates)
    - Navigate to the tweet URL via playwriter_execute
    - Use playwriter_execute with Get Page Text snippet to read tweet content
@@ -21,6 +22,9 @@ Your task:
    - Use playwriter_execute to focus reply composer, type and submit the reply
    - Update tracking file with the new reply
    - Update memory with the action
+   - ⚠️ CRITICAL: After posting reply on /status/ page, navigate back to home timeline (await page.goto('https://x.com/home')) to continue with next tweet
+   - The tab and "Recency" filter should still be active - if not, re-click tab and re-apply filter
+   - Continue with next tweet from the extracted list, or extract new batch if all processed
    - After completing quota for a target (or if no suitable tweets), move to the next target immediately
 4. Do NOT wait between targets; move to the next target immediately after completing one. Complete all targets in one continuous run.
 5. CRITICAL: Continue through ALL targets until:
@@ -41,14 +45,15 @@ Workflow for each reply (use exact snippets from Playwriter Snippets section):
 1. Parse the instruction: which target (timeline tab), how many replies
 2. Use playwriter_execute with Navigation snippet: await page.goto('https://x.com/home', ...)
 3. Use playwriter_execute with timeline-tab snippets to click the selected tab
-4. Use playwriter_execute with Extract Tweets snippet to get tweets from the timeline
-5. Select ONE tweet to reply to (pick one with good engagement potential, check tracking to avoid duplicates)
-6. Use playwriter_execute to open the tweet (navigate to URL)
-7. On the tweet page: use playwriter_execute with Get Page Text snippet to read content
-8. Write a helpful, natural reply that responds to that specific tweet (following personalization guidelines, max 280 characters)
-9. Use playwriter_execute to focus reply composer, type the reply, then submit
-10. Update tracking and memory
-11. If the user's instruction requests multiple replies, repeat steps 2–10 until you have successfully posted that exact number of replies (or there are no suitable tweets left).`;
+4. ⚠️ CRITICAL: ALWAYS filter to "Recency" after clicking the tab: click the tab's SVG icon, then select "Recency" from the menu
+5. Use playwriter_execute with Extract Tweets snippet to get the top 10 tweets from the filtered timeline
+6. Select ONE tweet to reply to (pick one with good engagement potential, check tracking to avoid duplicates)
+7. Use playwriter_execute to open the tweet (navigate to URL)
+8. On the tweet page: use playwriter_execute with Get Page Text snippet to read content
+9. Write a helpful, natural reply that responds to that specific tweet (following personalization guidelines, max 280 characters)
+10. Use playwriter_execute to focus reply composer, type the reply, then submit
+11. Update tracking and memory
+12. If the user's instruction requests multiple replies, repeat steps 2–11 until you have successfully posted that exact number of replies (or there are no suitable tweets left).`;
   },
 
   notifications: (skill: Skill) => {

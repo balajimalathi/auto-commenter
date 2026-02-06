@@ -40,14 +40,15 @@ Start batch mode with these commands:
     ↓
     [3-1] Execute SKILL.md Step 1-8 (write single reply for the selected tab)
     ↓
-    [3-2] Update tracking file
+    [3-2] Execute SKILL.md Step 9 (navigate back to home timeline to continue with next tweet)
     ↓
-    [3-3] Report progress
+    [3-3] Update tracking file
     ↓
-    [3-4] Check that tab's quota
-          - Under limit → back to [3-1]
+    [3-4] Report progress
+    ↓
+    [3-5] Check that tab's quota
+          - Under limit → back to [3-1] (continue with next tweet from timeline)
           - Completed limit → to [4]
-          - No suitable tweets → to [4]
     ↓
 [4] Move to next home timeline tab immediately
     ↓
@@ -76,7 +77,6 @@ Start batch mode with these commands:
 |-----------|-----------|
 | Between replies to same tab | 5mins |
 | Between tab transitions | None |
-| Can't find suitable tweet | Move to next tab immediately |
 
 ### Execution Example
 
@@ -103,9 +103,8 @@ Following complete (quota reached) → Move to Tab: Build in Public
 Batch execution terminates when one of the following is met:
 
 1. **Quota complete**: All tab quotas complete
-2. **No tweets**: No suitable tweets in all tabs
-3. **User interruption**: User requests stop
-4. **Error occurred**: After 3 consecutive failures
+2. **User interruption**: User requests stop
+3. **Error occurred**: After 3 consecutive failures
 
 ---
 
@@ -124,13 +123,9 @@ Completed tabs:
 
 When skipping specific tab:
 
-**No suitable tweets**: Skip if none after reviewing at least 5 tweets
+**Only skip if**: All visible tweets have already been replied to today (check tracking file for duplicates)
 
-When skipping, report:
-```
-Tab: Build in Public skipped - No suitable tweets
-→ Moving to Tab: Smol
-```
+**Never skip for**: Topic relevance, engagement level, or content type - reply to every tweet you see on each tab
 
 ---
 
@@ -159,9 +154,9 @@ Tab: Build in Public skipped - No suitable tweets
 |-----|---------|-------------|
 | For you | 3/25 | - |
 | Following | 3/25 | - |
-| Build in Public | 2/25 | No suitable tweets |
-| Fail in Public | 2/25 | No suitable tweets |
-| Smol | 2/25 | No suitable tweets |
+| Build in Public | 2/25 | All tweets already replied to |
+| Fail in Public | 2/25 | All tweets already replied to |
+| Smol | 2/25 | All tweets already replied to |
 
 ### Potential Customers Discovered
 - 1 (updated in leads/twitter.md)

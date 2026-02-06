@@ -78,12 +78,15 @@ Repeating any pattern makes it look automated:
 | 2 | No greetings | No "Hi!", "Hey!", "Thanks for sharing!" |
 | 3 | Lowercase OK | Don't over-capitalize, be casual |
 | 4 | Direct | Skip intros, get to the point |
-| 5 | Platform tone | Sounds like X/Twitter, not LinkedIn or Reddit |
-| 6 | No jargon | Avoid "leverage", "utilize", "facilitate" |
-| 7 | AI detection | See prevention section below |
-| 8 | Context match | Reply matches tweet topic and tone |
-| 9 | No cliches | No "game changer", "this is the way" |
-| 10 | Authenticity | Sounds like a real person, not a bot |
+| 5 | Closing | No cliché "Hope this helps!" |
+| 6 | Em-dash | Don't use, replace with `,` |
+| 7 | Technical accuracy | No wrong information |
+| 8 | Platform tone | Sounds like X/Twitter, not LinkedIn or Reddit |
+| 9 | No jargon | Avoid "leverage", "utilize", "facilitate" |
+| 10 | AI detection | See prevention section below |
+| 11 | Context match | Reply matches tweet topic and tone |
+| 12 | No cliches | No "game changer", "this is the way" |
+| 13 | Authenticity | Sounds like a real person, not a bot |
 
 ---
 
@@ -149,10 +152,11 @@ had this exact issue last week, ended up switching to X
 - "Hope this helps!"
 - "pain points", "leverage", "utilize"
 - "In my humble opinion"
+- "-", "—"
 
 ## Expressions to Use
 
-- "tbh", "honestly", "yeah", "lol"
+- "tbh", "honestly", "yeah", "lol", "rofl", "lfg"
 - "this", "exactly", "solid"
 - "try X", "check out X"
 - "curious about", "how do you handle"

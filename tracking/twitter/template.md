@@ -5,15 +5,15 @@
 
 ---
 
-## Activity Status by Target
+## Activity Status
 
-| Target          | Today's Replies | Daily Limit | Last Reply |
-|-----------------|-----------------|-------------|------------|
-| For you         | 0               | 25          | -          |
-| Following       | 0               | 25          | -          |
-| Build in Public | 0               | 25          | -          |
-| Fail in Public  | 0               | 25          | -          |
-| Smol            | 0               | 25          | -          |
+| Target          | Replies Today | Max | Last Activity |
+|-----------------|---------------|-----|--------------|
+| For you         | 0/25          | 25  | -            |
+| Following       | 0/25          | 25  | -            |
+| Build in Public | 0/25          | 25  | -            |
+| Fail in Public  | 0/25          | 25  | -            |
+| Smol            | 0/25          | 25  | -            |
 
 **Today's Total Replies**: 0
 **Next Target**: (Select from targets with no activity yet)

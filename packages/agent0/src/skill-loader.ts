@@ -1,4 +1,5 @@
-import { readdir, readFile } from 'fs/promises';
+import { readdir, readFile, writeFile } from 'fs/promises';
+import { mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 
@@ -171,6 +172,7 @@ export function getTodayTrackingPath(skill: Skill): string {
 
 /**
  * Load tracking file content
+ * Creates the file from template if it doesn't exist
  */
 export async function loadTracking(skill: Skill): Promise<string | null> {
   const trackingFile = getTodayTrackingPath(skill);
@@ -179,10 +181,25 @@ export async function loadTracking(skill: Skill): Promise<string | null> {
     return await readFile(trackingFile, 'utf-8');
   }
 
-  // Try to load template
+  // Try to load template and create tracking file
   const templatePath = join(skill.trackingPath, 'template.md');
   if (existsSync(templatePath)) {
-    return await readFile(templatePath, 'utf-8');
+    let templateContent = await readFile(templatePath, 'utf-8');
+    
+    // Replace date placeholder with today's date
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    templateContent = templateContent.replace(/\[YYYY-MM-DD\]/g, today);
+    
+    // Ensure tracking directory exists
+    const trackingDir = skill.trackingPath;
+    if (!existsSync(trackingDir)) {
+      mkdirSync(trackingDir, { recursive: true });
+    }
+    
+    // Create the tracking file
+    await writeFile(trackingFile, templateContent, 'utf-8');
+    
+    return templateContent;
   }
 
   return null;
@@ -210,13 +227,19 @@ export function parseTargets(targetsContent: string): TargetInfo[] {
   const targets: TargetInfo[] = [];
   
   // Look for table rows like: | r/chatgptpro | ~15K | 3 | or | For you | ~500K posts | 25 |
-  // Supports both Reddit format (r/name) and Twitter format (tab name)
-  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
+  // Supports both Reddit format (r/name) and Twitter format (tab name with spaces)
+  // Captures everything between first | and second |, excluding optional r/ prefix
+  const tableRegex = /\|\s*(?:r\/)?([^|]+?)\s*\|[^|]*\|\s*(\d+)\s*\|/g;
   let match;
   
   while ((match = tableRegex.exec(targetsContent)) !== null) {
+    const name = match[1].trim();
+    // Skip header rows
+    if (name.toLowerCase() === 'target' || name.toLowerCase() === 'subreddit' || name.toLowerCase() === 'tab') {
+      continue;
+    }
     targets.push({
-      name: match[1],
+      name,
       dailyLimit: parseInt(match[2], 10),
     });
   }
@@ -237,17 +260,37 @@ export interface TrackingActivity {
 export function parseTracking(trackingContent: string): TrackingActivity[] {
   const activities: TrackingActivity[] = [];
   
-  // Look for table rows like: | r/nocode | 2 | 3 | 14:30 | or | For you | 2 | 25 | 14:30 |
-  // Supports both Reddit format (r/name) and Twitter format (tab name)
-  const tableRegex = /\|\s*(?:r\/)?(\w+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
+  // Look for table rows in multiple formats:
+  // - Reddit: | r/nocode | 3/3 | 3 | 14:30 |
+  // - Twitter new: | For you | 0/25 | 25 | - |
+  // - Twitter old: | For you | 0 | 25 | 25 |
+  // Supports both Reddit format (r/name) and Twitter format (tab name with spaces)
+  // Handles X/Y format in second column (extracts X as todayComments)
+  const tableRegex = /\|\s*(?:r\/)?([^|]+?)\s*\|\s*(\d+)(?:\/(\d+))?\s*\|\s*(\d+)\s*\|\s*([^|]*)\s*\|/g;
   let match;
   
   while ((match = tableRegex.exec(trackingContent)) !== null) {
+    const target = match[1].trim();
+    // Skip header rows
+    const lowerTarget = target.toLowerCase();
+    if (lowerTarget === 'target' || lowerTarget === 'subreddit' || lowerTarget === 'tab' || 
+        lowerTarget.includes('──') || lowerTarget === '') {
+      continue;
+    }
+    
+    // Handle different formats:
+    // Format 1 (X/Y): | Target | 0/25 | 25 | - | → match[2]=0, match[3]=25, match[4]=25
+    // Format 2 (single): | Target | 0 | 25 | 25 | → match[2]=0, match[3]=undefined, match[4]=25
+    const todayComments = parseInt(match[2], 10);
+    // If X/Y format, use match[4] as dailyLimit (third column). If single number format, also use match[4]
+    const dailyLimit = parseInt(match[4], 10);
+    const lastActivity = match[5].trim();
+    
     activities.push({
-      target: match[1],
-      todayComments: parseInt(match[2], 10),
-      dailyLimit: parseInt(match[3], 10),
-      lastComment: match[4].trim() === '-' ? null : match[4].trim(),
+      target,
+      todayComments,
+      dailyLimit,
+      lastComment: lastActivity === '-' || lastActivity === '' ? null : lastActivity,
     });
   }
 

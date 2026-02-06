@@ -7,7 +7,7 @@ import {
   parseTargets,
   parseTracking,
   promptNextAction
-} from "./chunk-OSZ4YGG5.js";
+} from "./chunk-6NRNV2CS.js";
 
 // src/script-executor.ts
 import { readFile as readFile3 } from "fs/promises";
@@ -226,6 +226,7 @@ function createSpinner(text) {
 
 // src/tools.ts
 import { readFile as readFile2, writeFile as writeFile2, appendFile as appendFile3, readdir } from "fs/promises";
+import { mkdirSync as mkdirSync2 } from "fs";
 import { join as join3 } from "path";
 import { existsSync as existsSync3 } from "fs";
 
@@ -482,6 +483,34 @@ var Logger = class {
       }
     });
   }
+  /**
+   * Log playwriter_execute errors to dedicated error log file
+   */
+  logPlaywriterError(options) {
+    if (!this.initialized) {
+      return;
+    }
+    const root = getProjectRoot();
+    const logsDir = join2(root, "logs");
+    if (!existsSync2(logsDir)) {
+      mkdirSync(logsDir, { recursive: true });
+    }
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const errorLogFile = join2(logsDir, `playwriter-errors-${today}.log`);
+    const entry = {
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      skill: options.skill || "unknown",
+      context: options.context || "unknown",
+      timeout: options.timeout || 3e4,
+      duration_ms: options.durationMs,
+      code: options.code,
+      error: options.error
+    };
+    const line = JSON.stringify(entry) + "\n";
+    appendFile2(errorLogFile, line, "utf-8").catch((error) => {
+      console.error("Playwriter error logging failed:", error);
+    });
+  }
 };
 var logger = new Logger();
 function initLogger() {
@@ -501,6 +530,9 @@ function logToolResult(name, result, durationMs, error) {
 }
 function logIteration(iteration, maxIterations, hasToolCalls) {
   logger.logIteration(iteration, maxIterations, hasToolCalls);
+}
+function logPlaywriterError(options) {
+  logger.logPlaywriterError(options);
 }
 
 // src/tools.ts
@@ -619,6 +651,25 @@ async function executeTool(name, args, ctx) {
           result = JSON.stringify({ error: "Path outside project root" });
           break;
         }
+        if (!existsSync3(fullPath) && path.startsWith("tracking/")) {
+          const pathParts = path.split("/");
+          if (pathParts.length === 3 && pathParts[2].match(/^\d{4}-\d{2}-\d{2}\.md$/)) {
+            const platform = pathParts[1];
+            const templatePath = join3(root, "tracking", platform, "template.md");
+            if (existsSync3(templatePath)) {
+              let templateContent = await readFile2(templatePath, "utf-8");
+              const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+              templateContent = templateContent.replace(/\[YYYY-MM-DD\]/g, today);
+              const trackingDir = join3(root, "tracking", platform);
+              if (!existsSync3(trackingDir)) {
+                mkdirSync2(trackingDir, { recursive: true });
+              }
+              await writeFile2(fullPath, templateContent, "utf-8");
+              result = templateContent;
+              break;
+            }
+          }
+        }
         if (!existsSync3(fullPath)) {
           result = JSON.stringify({ error: `File not found: ${path}` });
           break;
@@ -675,7 +726,17 @@ async function executeTool(name, args, ctx) {
         const timeout = args.timeout ?? 3e4;
         const browserResult = await executeScript(code, timeout);
         if (browserResult.isError) {
-          result = JSON.stringify({ error: browserResult.text });
+          const errorMessage = browserResult.text;
+          result = JSON.stringify({ error: errorMessage });
+          const durationMs2 = Date.now() - startTime;
+          logPlaywriterError({
+            code,
+            error: errorMessage,
+            timeout,
+            durationMs: durationMs2,
+            skill: ctx.skill?.name,
+            context: ctx.skill ? `${ctx.skill.platform}-commenter` : void 0
+          });
         } else {
           result = browserResult.text;
         }
@@ -700,6 +761,18 @@ async function executeTool(name, args, ctx) {
     const message = error instanceof Error ? error.message : "Unknown error";
     output.error(`Tool "${name}" failed: ${message}`);
     const errorResult = JSON.stringify({ error: message });
+    if (name === "playwriter_execute") {
+      const code = args.code || "";
+      const timeout = args.timeout ?? 3e4;
+      logPlaywriterError({
+        code,
+        error: message,
+        timeout,
+        durationMs,
+        skill: ctx.skill?.name,
+        context: ctx.skill ? `${ctx.skill.platform}-commenter` : void 0
+      });
+    }
     logToolResult(name, errorResult, durationMs, message);
     return errorResult;
   }

@@ -56,8 +56,7 @@ Browser interaction is handled through `playwriter_execute` and the **Playwriter
 4. Check tab/target specifics in resources/targets.md:
    - Target type (e.g. home timeline tab)
    - Community nature / typical content for that tab
-   - Good topics to engage with
-   → Reflect this information when selecting tweets from that tab
+   → Note: This is informational only - you will reply to ALL tweets regardless of topic
 ```
 
 ### Step 2: Access Home Timeline and Explore Tweets
@@ -67,24 +66,24 @@ Browser interaction is handled through `playwriter_execute` and the **Playwriter
    → Navigate directly to "https://x.com/home"
    → Use timeline-tab snippets to click the selected tab from Step 1 (`For you`, `Following`, `Build in Public`, `Fail in Public`, or `Smol`)
 
-2. For tabs that support sorting (e.g. `Following`), optionally use timeline-tab filter snippets to:
-   → Open the tab's menu (e.g. the small icon on the tab)
-   → Select `Recent` so the timeline shows the most recent tweets
+2. ⚠️ CRITICAL: ALWAYS filter to "Recency" after clicking any tab:
+   → Click the tab's SVG icon to open the filter menu
+   → Select `Recency` from the menu
+   → This ensures you always see the most recent tweets first
+   → Apply this pattern to ALL tabs (not just `Following`)
 
-3. Capture the page structure/content for the selected tab
-   → Use Playwriter snippets to read the list of tweets and their links in that timeline
+3. Extract the top 10 tweets from the filtered timeline
+   → Use Playwriter snippets to read the list of tweets and their links
+   → Always limit extraction to the top 10 tweets (most recent)
 
 4. Criteria for selecting tweets to reply to:
-   • Tweets where you can share insights or provide value
    • ⚠️ CRITICAL: Tweets you haven't replied to today
      - Check activity log in tracking/twitter/today's-date.md file
      - Extract list of tweet URLs from today's replies
      - Verify selected tweet URL is NOT in that list
      - Absolutely NO duplicate replies on same tweet
-   • OK even if not directly related to your service/field
-   • Relevance to "good topics to engage" from Step 1
-   • Prefer tweets with moderate engagement (not viral with 1000+ replies)
-   • Prefer recent tweets (last 24h)
+   • **Reply to EVERY tweet you see** - no filtering by topic, engagement, or relevance
+   • Simply pick the first tweet from the timeline that you haven't replied to today
    • This skill never creates new tweets; always select an existing tweet from the timeline and plan to use its **Reply** button.
 
 5. Secure URL of selected tweet
@@ -225,6 +224,26 @@ Update tracking/twitter/[today's-date].md file:
 
 3. When potential customer discovered:
    - Update 'leads/twitter.md' when potential customer discovered
+```
+
+### Step 9: Return to Timeline (Batch Mode Only)
+
+```
+⚠️ CRITICAL for batch mode: After posting a reply on the /status/ page, navigate back to the home timeline to continue with the next tweet.
+
+1. Navigate back to home timeline
+   → Use Playwriter Navigation snippet: await page.goto('https://x.com/home')
+   → Wait for page to load
+
+2. The previously selected tab and "Recency" filter should still be active
+   → If the tab/filter is lost, re-click the tab and re-apply the "Recency" filter
+   → Otherwise, proceed directly to extract the next tweet
+
+3. Continue with next tweet from the extracted list (from Step 2)
+   → If all tweets from the current extraction have been processed, extract a new batch of top 10 tweets
+   → Return to Step 3 to process the next tweet
+
+Note: In single reply mode, this step is not needed - the workflow ends after Step 8.
 ```
 
 ---

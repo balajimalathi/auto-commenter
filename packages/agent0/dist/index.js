@@ -10,7 +10,7 @@ import {
   runPostMode,
   runTrendingMode,
   showBanner
-} from "./chunk-W6ZDSOJV.js";
+} from "./chunk-LPZC5FHA.js";
 import {
   discoverSkills,
   promptInstruction,
@@ -19,7 +19,7 @@ import {
   selectMainAction,
   selectMode,
   selectSkill
-} from "./chunk-OSZ4YGG5.js";
+} from "./chunk-6NRNV2CS.js";
 
 // src/index.ts
 import { config } from "dotenv";
@@ -129,8 +129,8 @@ async function runCLI() {
         }
         break;
       case "script": {
-        const { selectScriptFile } = await import("./prompts-inquirer-GQNPUYOA.js");
-        const { executeScript: executeScript2, loadScript: loadScript2 } = await import("./script-executor-G2PQW3XA.js");
+        const { selectScriptFile } = await import("./prompts-inquirer-BDK7AE2L.js");
+        const { executeScript: executeScript2, loadScript: loadScript2 } = await import("./script-executor-KMRZUU6N.js");
         try {
           const scriptPath = await selectScriptFile();
           const script = await loadScript2(scriptPath);
