@@ -1,4 +1,7 @@
 import { select, input, confirm } from '@inquirer/prompts';
+import { readdir } from 'fs/promises';
+import { dirname, join, basename } from 'path';
+import { fileURLToPath } from 'url';
 import { discoverSkills } from '../skill-loader.js';
 import { output } from './output.js';
 
@@ -78,17 +81,40 @@ export async function promptTarget(): Promise<string | undefined> {
   });
 }
 
+// Project root (where script/ folder lives) - from packages/agent0/src/ui/ up 4 levels
+const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const SCRIPT_DIR = join(PROJECT_ROOT, 'script');
+
 /**
- * Prompt for script file path
+ * Discover available script files in the script/ folder at project root
+ * Returns full absolute paths for loadScript compatibility
+ */
+async function discoverScripts(): Promise<string[]> {
+  try {
+    const entries = await readdir(SCRIPT_DIR, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isFile() && e.name.endsWith('.json'))
+      .map((e) => join(SCRIPT_DIR, e.name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Select a script file from dropdown (lists JSON files in script/ folder at project root)
  */
 export async function selectScriptFile(): Promise<string> {
-  return await input({
-    message: 'Enter script file path (e.g., script.json):',
-    default: 'script.json',
-    validate: (value) => {
-      if (!value.trim()) return 'Script file path is required';
-      return true;
-    },
+  const scripts = await discoverScripts();
+  if (scripts.length === 0) {
+    throw new Error('No .json scripts found in script/ folder at project root');
+  }
+  return await select({
+    message: 'Select a script to run:',
+    choices: scripts.map((fullPath) => ({
+      name: `script/${basename(fullPath)}`,
+      value: fullPath,
+    })),
   });
 }
 

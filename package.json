@@ -1,1 +1,22 @@
-{"name":"auto-commenter","version":"1.0.0","description":"Marketing automation framework with Claude Skills and Agent0 CLI","type":"module","scripts":{"agent0":"pnpm --filter agent0 run dev --","agent0:build":"pnpm --filter agent0 run build","agent0:batch":"pnpm --filter agent0 run dev -- batch","agent0:interactive":"pnpm --filter agent0 run dev","extension:build":"pnpm --filter mcp-extension run build","playwriter:build":"pnpm --filter playwriter run build","playwriter:mcp":"pnpm --filter playwriter run mcp","playwriter:relay":"pnpm --filter playwriter run relay","relay":"pnpm playwriter:relay","build":"pnpm agent0:build && pnpm extension:build","install:all":"pnpm install"},"dependencies":{"@anthropic-ai/claude-code":"^2.1.31"}}
+{
+  "name": "auto-commenter",
+  "version": "1.0.0",
+  "description": "Marketing automation framework with Claude Skills and Agent0 CLI",
+  "type": "module",
+  "scripts": {
+    "agent0": "pnpm --filter agent0 run dev --",
+    "agent0:build": "pnpm --filter agent0 run build",
+    "agent0:batch": "pnpm --filter agent0 run dev -- batch",
+    "agent0:interactive": "pnpm --filter agent0 run dev",
+    "extension:build": "pnpm --filter mcp-extension run build",
+    "playwriter:build": "pnpm --filter playwriter run build",
+    "playwriter:mcp": "pnpm --filter playwriter run mcp",
+    "playwriter:relay": "pnpm --filter playwriter run relay",
+    "relay": "pnpm playwriter:relay",
+    "build": "pnpm agent0:build && pnpm extension:build",
+    "install:all": "pnpm install"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.31"
+  }
+}

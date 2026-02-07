@@ -1,0 +1,18 @@
+[
+  {
+    "mode": "batch",
+    "skill": "reddit-commenter"
+  }, 
+  {
+    "mode": "batch",
+    "skill": "twitter-commenter"
+  }, 
+  {
+    "mode": "batch",
+    "skill": "reddit-commenter"
+  }, 
+  {
+    "mode": "batch",
+    "skill": "twitter-commenter"
+  }
+]
