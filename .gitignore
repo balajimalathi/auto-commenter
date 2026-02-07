@@ -59,5 +59,6 @@ trending_*.md
 
 # Logs
 logs/
+!logs/README.md
 
 */dist/
